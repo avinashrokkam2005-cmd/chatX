@@ -1,0 +1,80 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    @apply bg-chatx-bg text-chatx-text;
+  }
+
+  /* Custom scrollbar for dark theme */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-chatx-bg;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-chatx-border rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-chatx-text-secondary;
+  }
+}
+
+@layer components {
+  /* Glass panel effect */
+  .glass-panel {
+    @apply bg-chatx-surface/80 backdrop-blur-sm border border-chatx-border/50 rounded-xl;
+  }
+
+  /* Input styling */
+  .input-field {
+    @apply w-full px-4 py-3 bg-chatx-card border border-chatx-border rounded-lg
+           text-chatx-text placeholder-chatx-text-secondary
+           focus:outline-none focus:ring-2 focus:ring-chatx-accent/50 focus:border-chatx-accent
+           transition-all duration-200;
+  }
+
+  /* Primary button */
+  .btn-primary {
+    @apply px-6 py-3 bg-chatx-accent text-white rounded-lg
+           hover:bg-chatx-accent-hover
+           disabled:opacity-50 disabled:cursor-not-allowed
+           transition-colors duration-200 font-medium;
+  }
+
+  /* Secondary button */
+  .btn-secondary {
+    @apply px-6 py-3 bg-chatx-card text-chatx-text rounded-lg
+           border border-chatx-border
+           hover:bg-chatx-hover
+           disabled:opacity-50 disabled:cursor-not-allowed
+           transition-colors duration-200 font-medium;
+  }
+
+  /* Danger button */
+  .btn-danger {
+    @apply px-6 py-3 bg-chatx-danger/10 text-chatx-danger rounded-lg
+           border border-chatx-danger/20
+           hover:bg-chatx-danger/20
+           disabled:opacity-50 disabled:cursor-not-allowed
+           transition-colors duration-200 font-medium;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}

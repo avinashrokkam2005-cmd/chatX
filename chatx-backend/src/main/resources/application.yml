@@ -1,0 +1,60 @@
+spring:
+  profiles:
+    active: dev
+
+  application:
+    name: chatx-backend
+
+  # JPA / Hibernate
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: ${CHATX_DDL_AUTO:validate}
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQLDialect
+        format_sql: false
+        jdbc:
+          time_zone: UTC
+
+  # Jackson
+  jackson:
+    default-property-inclusion: non_null
+    serialization:
+      write-dates-as-timestamps: false
+    time-zone: UTC
+
+  # Servlet
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 15MB
+
+# Server
+server:
+  port: ${CHATX_SERVER_PORT:8080}
+  error:
+    include-message: never
+    include-stacktrace: never
+
+# ChatX custom properties
+chatx:
+  jwt:
+    secret: ${CHATX_JWT_SECRET:chatx-super-secure-jwt-secret-key-that-is-at-least-256-bits-long-dev}
+    access-token-expiration-ms: 900000       # 15 minutes
+    refresh-token-expiration-ms: 604800000   # 7 days
+  file-storage:
+    upload-dir: ${CHATX_UPLOAD_DIR:./uploads}
+    max-file-size-mb: 10
+    allowed-types: image/jpeg,image/png,image/gif,image/webp,video/mp4,audio/mpeg,audio/ogg,audio/webm,application/pdf,application/zip
+  cors:
+    allowed-origins: ${CHATX_CORS_ORIGINS:http://localhost:5173}
+
+# Logging
+logging:
+  level:
+    com.chatx: INFO
+    org.springframework.security: WARN
+    org.hibernate.SQL: WARN
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
