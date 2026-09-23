@@ -3,6 +3,7 @@ import { AuthProvider } from './context/AuthContext';
 import { LoginPage } from './features/auth/pages/LoginPage';
 import { RegisterPage } from './features/auth/pages/RegisterPage';
 import { HomePage } from './pages/app/HomePage';
+import { ProfilePage } from './features/profile/pages/ProfilePage';
 import { ProtectedRoute } from './components/common/ProtectedRoute';
 import { Toaster } from 'react-hot-toast';
 
@@ -31,6 +32,22 @@ function App() {
             element={
               <ProtectedRoute>
                 <HomePage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/profile"
+            element={
+              <ProtectedRoute>
+                <ProfilePage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/profile/:username"
+            element={
+              <ProtectedRoute>
+                <ProfilePage />
               </ProtectedRoute>
             }
           />
