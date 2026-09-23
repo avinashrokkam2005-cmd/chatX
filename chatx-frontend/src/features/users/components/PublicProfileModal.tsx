@@ -1,8 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { ProfileDto } from '../../../types/profile';
 import profileApi from '../../profile/services/profileApi';
-import { X, Calendar, Shield, AtSign, Loader2, UserPlus, MessageCircle } from 'lucide-react';
+import friendApi from '../../friends/services/friendApi';
+import blockApi from '../../friends/services/blockApi';
+import { X, Calendar, Shield, AtSign, Loader2, UserPlus, MessageCircle, ShieldAlert } from 'lucide-react';
 import { format } from 'date-fns';
+import toast from 'react-hot-toast';
 
 interface PublicProfileModalProps {
   userId?: string;
@@ -13,6 +16,7 @@ interface PublicProfileModalProps {
 export const PublicProfileModal: React.FC<PublicProfileModalProps> = ({ userId, username, onClose }) => {
   const [profile, setProfile] = useState<ProfileDto | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSendingRequest, setIsSendingRequest] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -38,6 +42,31 @@ export const PublicProfileModal: React.FC<PublicProfileModalProps> = ({ userId, 
 
     fetchProfile();
   }, [userId, username]);
+
+  const handleSendFriendRequest = async () => {
+    if (!profile) return;
+    try {
+      setIsSendingRequest(true);
+      await friendApi.sendFriendRequest(profile.userId);
+      toast.success(`Friend request sent to @${profile.username}!`);
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Failed to send friend request');
+    } finally {
+      setIsSendingRequest(false);
+    }
+  };
+
+  const handleBlockUser = async () => {
+    if (!profile) return;
+    if (!confirm(`Are you sure you want to block @${profile.username}?`)) return;
+    try {
+      await blockApi.blockUser(profile.userId);
+      toast.success(`Blocked @${profile.username}`);
+      onClose();
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Failed to block user');
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-150">
@@ -115,21 +144,36 @@ export const PublicProfileModal: React.FC<PublicProfileModalProps> = ({ userId, 
                 </div>
               </div>
 
-              {/* Action buttons (Placeholders for Friends and Chat in next phases) */}
-              <div className="mt-6 flex gap-3">
+              {/* Action buttons */}
+              <div className="mt-6 flex flex-col gap-2.5">
+                <div className="flex gap-2.5">
+                  <button
+                    onClick={() => alert(`Direct conversation with @${profile.username} will be launched in Phase 5!`)}
+                    className="btn-primary flex-1 flex items-center justify-center gap-2 py-2.5 text-xs font-semibold"
+                  >
+                    <MessageCircle className="w-4 h-4" />
+                    <span>Message</span>
+                  </button>
+                  <button
+                    onClick={handleSendFriendRequest}
+                    disabled={isSendingRequest}
+                    className="btn-secondary flex-1 flex items-center justify-center gap-2 py-2.5 text-xs font-semibold"
+                  >
+                    {isSendingRequest ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <UserPlus className="w-4 h-4" />
+                    )}
+                    <span>Add Friend</span>
+                  </button>
+                </div>
+
                 <button
-                  onClick={() => alert(`Direct messaging with @${profile.username} will be enabled in Phase 5!`)}
-                  className="btn-primary flex-1 flex items-center justify-center gap-2 py-2.5 text-xs font-semibold"
+                  onClick={handleBlockUser}
+                  className="w-full py-2 rounded-lg bg-chatx-danger/10 hover:bg-chatx-danger/20 border border-chatx-danger/20 text-chatx-danger text-xs font-medium flex items-center justify-center gap-1.5 transition-colors"
                 >
-                  <MessageCircle className="w-4 h-4" />
-                  <span>Message</span>
-                </button>
-                <button
-                  onClick={() => alert(`Friend requests with @${profile.username} will be enabled in Phase 4!`)}
-                  className="btn-secondary flex-1 flex items-center justify-center gap-2 py-2.5 text-xs font-semibold"
-                >
-                  <UserPlus className="w-4 h-4" />
-                  <span>Add Friend</span>
+                  <ShieldAlert className="w-3.5 h-3.5" />
+                  <span>Block @{profile.username}</span>
                 </button>
               </div>
             </>

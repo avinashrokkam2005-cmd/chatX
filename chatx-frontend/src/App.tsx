@@ -4,6 +4,7 @@ import { LoginPage } from './features/auth/pages/LoginPage';
 import { RegisterPage } from './features/auth/pages/RegisterPage';
 import { HomePage } from './pages/app/HomePage';
 import { ProfilePage } from './features/profile/pages/ProfilePage';
+import { FriendsPage } from './features/friends/pages/FriendsPage';
 import { ProtectedRoute } from './components/common/ProtectedRoute';
 import { Toaster } from 'react-hot-toast';
 
@@ -32,6 +33,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <HomePage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/friends"
+            element={
+              <ProtectedRoute>
+                <FriendsPage />
               </ProtectedRoute>
             }
           />

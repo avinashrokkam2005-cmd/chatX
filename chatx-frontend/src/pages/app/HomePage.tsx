@@ -12,6 +12,7 @@ import {
   Search,
   Settings,
   Sparkles,
+  Users,
 } from 'lucide-react';
 import { UserSearchModal } from '../../features/users/components/UserSearchModal';
 
@@ -70,6 +71,15 @@ export const HomePage: React.FC = () => {
           >
             <Search className="w-4 h-4" />
           </button>
+
+          {/* Friends link */}
+          <Link
+            to="/friends"
+            className="p-2 rounded-lg bg-chatx-card hover:bg-chatx-hover border border-chatx-border text-chatx-text-secondary hover:text-white transition-colors"
+            title="Friends & Requests"
+          >
+            <Users className="w-4 h-4" />
+          </Link>
 
           {/* Profile & Settings link */}
           <Link
@@ -134,6 +144,13 @@ export const HomePage: React.FC = () => {
               <Search className="w-4 h-4" />
               <span>Search Other Users</span>
             </button>
+            <Link
+              to="/friends"
+              className="btn-secondary text-xs flex items-center gap-2 py-2.5 px-4"
+            >
+              <Users className="w-4 h-4" />
+              <span>Friends & Requests</span>
+            </Link>
             <Link
               to="/profile"
               className="btn-secondary text-xs flex items-center gap-2 py-2.5 px-4"
