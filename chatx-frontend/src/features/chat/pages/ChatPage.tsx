@@ -3,6 +3,8 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../../context/AuthContext';
 import conversationApi from '../services/conversationApi';
 import messageApi from '../services/messageApi';
+import presenceApi from '../../presence/services/presenceApi';
+import wsService from '../../../services/websocket';
 import { ConversationDto } from '../../../types/conversation';
 import { MessageDto } from '../../../types/message';
 import { CreateGroupModal } from '../components/CreateGroupModal';
@@ -52,11 +54,45 @@ export const ChatPage: React.FC = () => {
   const [editInput, setEditInput] = useState('');
   const [activeReactionMessageId, setActiveReactionMessageId] = useState<string | null>(null);
 
+  // Real-Time Presence & Typing state
+  const [onlineUsers, setOnlineUsers] = useState<Record<string, boolean>>({});
+  const [typingUser, setTypingUser] = useState<string | null>(null);
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const sendTypingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
   const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
     messagesEndRef.current?.scrollIntoView({ behavior });
   };
+
+  // Connect WebSocket on user auth
+  useEffect(() => {
+    const token = localStorage.getItem('access_token');
+    if (token) {
+      wsService.connect(token).then(() => {
+        // Subscribe to global presence events
+        const sub = wsService.subscribeToPresence((event: any) => {
+          if (event && event.payload) {
+            const { userId, status } = event.payload;
+            setOnlineUsers((prev) => ({
+              ...prev,
+              [userId]: status === 'ONLINE',
+            }));
+          }
+        });
+        return () => sub?.unsubscribe();
+      }).catch((err) => {
+        console.warn('[WebSocket] Connection failed, using HTTP polling fallback:', err);
+      });
+    }
+
+    return () => {
+      // Cleanup typing timers
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      if (sendTypingTimeoutRef.current) clearTimeout(sendTypingTimeoutRef.current);
+    };
+  }, [currentUser]);
 
   const fetchConversations = async () => {
     try {
@@ -67,6 +103,16 @@ export const ChatPage: React.FC = () => {
       if (conversationId) {
         const detailed = await conversationApi.getConversationById(conversationId);
         setSelectedConv(detailed);
+      }
+
+      // Check online status for direct participants
+      const userIds = data
+        .filter((c) => c.type === 'DIRECT' && c.directParticipant)
+        .map((c) => c.directParticipant!.id);
+      if (userIds.length > 0) {
+        presenceApi.getOnlineStatusBatch(userIds).then((statuses) => {
+          setOnlineUsers((prev) => ({ ...prev, ...statuses }));
+        }).catch(() => {});
       }
     } catch (err) {
       console.error('Failed to load conversations:', err);
@@ -79,7 +125,6 @@ export const ChatPage: React.FC = () => {
     try {
       setIsLoadingMessages(true);
       const msgs = await messageApi.getConversationMessages(convId, undefined, 50);
-      // Backend returns desc order (newest first for pagination cursor) - we reverse for chat chronological display
       setMessages([...msgs].reverse());
       await messageApi.markConversationAsRead(convId);
       setTimeout(() => scrollToBottom('auto'), 50);
@@ -95,6 +140,7 @@ export const ChatPage: React.FC = () => {
     fetchConversations();
   }, []);
 
+  // Handle active conversation selection & WebSocket topic subscription
   useEffect(() => {
     if (conversationId) {
       conversationApi
@@ -107,18 +153,93 @@ export const ChatPage: React.FC = () => {
           console.error(err);
           toast.error('Conversation not found');
         });
+
+      // Subscribe to conversation STOMP topic
+      const convSub = wsService.subscribeToConversation(conversationId, (event: any) => {
+        if (!event) return;
+        const type = event.type;
+        const payload = event.payload;
+
+        if (type === 'NEW_MESSAGE' && payload) {
+          setMessages((prev) => {
+            if (prev.some((m) => m.id === payload.id)) return prev;
+            return [...prev, payload];
+          });
+
+          // Update sidebar snippet
+          setConversations((prev) =>
+            prev.map((c) =>
+              c.id === conversationId
+                ? {
+                    ...c,
+                    lastMessageContent: payload.content,
+                    lastMessageAt: payload.createdAt,
+                    lastMessageSenderUsername: payload.senderUsername,
+                  }
+                : c
+            )
+          );
+        } else if (type === 'MESSAGE_EDITED' && payload) {
+          setMessages((prev) => prev.map((m) => (m.id === payload.id ? payload : m)));
+        } else if (type === 'MESSAGE_DELETED' && payload) {
+          setMessages((prev) => prev.map((m) => (m.id === payload.id ? payload : m)));
+        } else if (type === 'REACTION_UPDATED' && payload) {
+          const { messageId, reactions } = payload;
+          setMessages((prev) =>
+            prev.map((m) => (m.id === messageId ? { ...m, reactions } : m))
+          );
+        }
+      });
+
+      // Subscribe to typing indicator STOMP topic
+      const typingSub = wsService.subscribeToTyping(conversationId, (event: any) => {
+        if (!event || !event.payload) return;
+        const { userId, username, isTyping } = event.payload;
+        if (userId === currentUser?.id) return;
+
+        if (isTyping) {
+          setTypingUser(username);
+          if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+          typingTimeoutRef.current = setTimeout(() => {
+            setTypingUser(null);
+          }, 3500);
+        } else {
+          setTypingUser(null);
+        }
+      });
+
+      return () => {
+        convSub?.unsubscribe();
+        typingSub?.unsubscribe();
+        setTypingUser(null);
+      };
     } else {
       setSelectedConv(null);
       setMessages([]);
     }
-  }, [conversationId]);
+  }, [conversationId, currentUser?.id]);
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages]);
+  }, [messages, typingUser]);
 
   const handleSelectConversation = (conv: ConversationDto) => {
     navigate(`/chat/${conv.id}`);
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setMessageInput(e.target.value);
+    if (!selectedConv) return;
+
+    // Send typing event to WebSocket
+    wsService.sendTyping(selectedConv.id, true);
+
+    if (sendTypingTimeoutRef.current) clearTimeout(sendTypingTimeoutRef.current);
+    sendTypingTimeoutRef.current = setTimeout(() => {
+      if (selectedConv) {
+        wsService.sendTyping(selectedConv.id, false);
+      }
+    }, 2500);
   };
 
   const handleSendMessage = async (e: React.FormEvent) => {
@@ -128,6 +249,10 @@ export const ChatPage: React.FC = () => {
     const content = messageInput.trim();
     setIsSending(true);
 
+    // Turn off typing indicator immediately on send
+    if (sendTypingTimeoutRef.current) clearTimeout(sendTypingTimeoutRef.current);
+    wsService.sendTyping(selectedConv.id, false);
+
     try {
       const sentMsg = await messageApi.sendMessage({
         conversationId: selectedConv.id,
@@ -135,7 +260,10 @@ export const ChatPage: React.FC = () => {
         replyToMessageId: replyingTo ? replyingTo.id : undefined,
       });
 
-      setMessages((prev) => [...prev, sentMsg]);
+      setMessages((prev) => {
+        if (prev.some((m) => m.id === sentMsg.id)) return prev;
+        return [...prev, sentMsg];
+      });
       setMessageInput('');
       setReplyingTo(null);
 
@@ -199,6 +327,11 @@ export const ChatPage: React.FC = () => {
     }
   };
 
+  const isPartnerOnline =
+    selectedConv?.type === 'DIRECT' &&
+    selectedConv.directParticipant &&
+    onlineUsers[selectedConv.directParticipant.id];
+
   const filteredConversations = conversations.filter((c) =>
     c.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
@@ -214,8 +347,9 @@ export const ChatPage: React.FC = () => {
             </div>
             <span className="font-bold text-base text-white tracking-tight">ChatX</span>
           </Link>
-          <span className="text-xs px-2 py-0.5 rounded bg-chatx-card text-chatx-text-secondary border border-chatx-border">
-            Real-Time Messages
+          <span className="text-xs px-2 py-0.5 rounded bg-chatx-card text-chatx-text-secondary border border-chatx-border flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            <span>Real-Time WebSocket Active</span>
           </span>
         </div>
 
@@ -288,6 +422,11 @@ export const ChatPage: React.FC = () => {
             ) : filteredConversations.length > 0 ? (
               filteredConversations.map((conv) => {
                 const isSelected = selectedConv?.id === conv.id;
+                const isOnline =
+                  conv.type === 'DIRECT' &&
+                  conv.directParticipant &&
+                  onlineUsers[conv.directParticipant.id];
+
                 return (
                   <div
                     key={conv.id}
@@ -298,14 +437,19 @@ export const ChatPage: React.FC = () => {
                         : 'hover:bg-chatx-hover/60 border border-transparent'
                     }`}
                   >
-                    {/* Avatar */}
-                    <div className="w-11 h-11 rounded-xl bg-gradient-to-tr from-chatx-accent to-purple-600 flex items-center justify-center font-bold text-white text-sm shrink-0 overflow-hidden shadow-sm">
-                      {conv.avatarUrl ? (
-                        <img src={conv.avatarUrl} alt={conv.name} className="w-full h-full object-cover" />
-                      ) : conv.type === 'GROUP' ? (
-                        <Users className="w-5 h-5" />
-                      ) : (
-                        conv.name.charAt(0).toUpperCase()
+                    {/* Avatar with live status dot */}
+                    <div className="relative shrink-0">
+                      <div className="w-11 h-11 rounded-xl bg-gradient-to-tr from-chatx-accent to-purple-600 flex items-center justify-center font-bold text-white text-sm overflow-hidden shadow-sm">
+                        {conv.avatarUrl ? (
+                          <img src={conv.avatarUrl} alt={conv.name} className="w-full h-full object-cover" />
+                        ) : conv.type === 'GROUP' ? (
+                          <Users className="w-5 h-5" />
+                        ) : (
+                          conv.name.charAt(0).toUpperCase()
+                        )}
+                      </div>
+                      {conv.type === 'DIRECT' && isOnline && (
+                        <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-500 border-2 border-chatx-bg ring-1 ring-emerald-400" />
                       )}
                     </div>
 
@@ -369,13 +513,18 @@ export const ChatPage: React.FC = () => {
                     <ArrowLeft className="w-4 h-4" />
                   </button>
 
-                  <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-chatx-accent to-purple-600 flex items-center justify-center font-bold text-white text-sm shrink-0 overflow-hidden shadow">
-                    {selectedConv.avatarUrl ? (
-                      <img src={selectedConv.avatarUrl} alt={selectedConv.name} className="w-full h-full object-cover" />
-                    ) : selectedConv.type === 'GROUP' ? (
-                      <Users className="w-5 h-5" />
-                    ) : (
-                      selectedConv.name.charAt(0).toUpperCase()
+                  <div className="relative shrink-0">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-chatx-accent to-purple-600 flex items-center justify-center font-bold text-white text-sm overflow-hidden shadow">
+                      {selectedConv.avatarUrl ? (
+                        <img src={selectedConv.avatarUrl} alt={selectedConv.name} className="w-full h-full object-cover" />
+                      ) : selectedConv.type === 'GROUP' ? (
+                        <Users className="w-5 h-5" />
+                      ) : (
+                        selectedConv.name.charAt(0).toUpperCase()
+                      )}
+                    </div>
+                    {isPartnerOnline && (
+                      <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-500 border-2 border-chatx-bg ring-1 ring-emerald-400" />
                     )}
                   </div>
 
@@ -392,9 +541,16 @@ export const ChatPage: React.FC = () => {
                         </span>
                       )}
                     </div>
-                    <p className="text-[11px] text-chatx-text-secondary truncate mt-0.5">
-                      {selectedConv.description || (selectedConv.type === 'DIRECT' ? 'Direct private session' : 'Group communication')}
-                    </p>
+                    <div className="text-[11px] text-chatx-text-secondary truncate mt-0.5 flex items-center gap-1.5">
+                      {isPartnerOnline ? (
+                        <span className="text-emerald-400 font-medium">Online</span>
+                      ) : (
+                        <span>
+                          {selectedConv.description ||
+                            (selectedConv.type === 'DIRECT' ? 'Direct private session' : 'Group communication')}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
 
@@ -604,6 +760,21 @@ export const ChatPage: React.FC = () => {
                         );
                       })
                     )}
+
+                    {/* Live Typing Indicator Bubble */}
+                    {typingUser && (
+                      <div className="flex items-center gap-2 p-2 px-3 rounded-2xl bg-chatx-surface border border-chatx-border w-max animate-in fade-in duration-200">
+                        <span className="text-xs text-chatx-text-secondary italic">
+                          @{typingUser} is typing
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-chatx-accent animate-bounce [animation-delay:-0.3s]" />
+                          <span className="w-1.5 h-1.5 rounded-full bg-chatx-accent animate-bounce [animation-delay:-0.15s]" />
+                          <span className="w-1.5 h-1.5 rounded-full bg-chatx-accent animate-bounce" />
+                        </span>
+                      </div>
+                    )}
+
                     <div ref={messagesEndRef} />
                   </div>
 
@@ -673,7 +844,7 @@ export const ChatPage: React.FC = () => {
                         <input
                           type="text"
                           value={messageInput}
-                          onChange={(e) => setMessageInput(e.target.value)}
+                          onChange={handleInputChange}
                           placeholder={`Message ${selectedConv.name}...`}
                           className="input-field text-xs py-2.5"
                           disabled={isSending}
@@ -711,36 +882,44 @@ export const ChatPage: React.FC = () => {
                     </div>
 
                     <div className="space-y-3">
-                      {selectedConv.members?.map((member) => (
-                        <div
-                          key={member.userId}
-                          className="flex items-center justify-between gap-2 p-2 rounded-lg bg-chatx-card/60"
-                        >
-                          <div className="flex items-center gap-2.5 min-w-0">
-                            <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-chatx-accent to-purple-600 flex items-center justify-center font-bold text-white text-xs shrink-0 overflow-hidden">
-                              {member.avatarUrl ? (
-                                <img src={member.avatarUrl} alt={member.username} className="w-full h-full object-cover" />
-                              ) : (
-                                member.displayName?.charAt(0).toUpperCase() || member.username.charAt(0).toUpperCase()
-                              )}
-                            </div>
-                            <div className="min-w-0">
-                              <div className="font-semibold text-xs text-white truncate">
-                                {member.displayName || member.username}
+                      {selectedConv.members?.map((member) => {
+                        const isMemberOnline = onlineUsers[member.userId];
+                        return (
+                          <div
+                            key={member.userId}
+                            className="flex items-center justify-between gap-2 p-2 rounded-lg bg-chatx-card/60"
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <div className="relative shrink-0">
+                                <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-chatx-accent to-purple-600 flex items-center justify-center font-bold text-white text-xs overflow-hidden">
+                                  {member.avatarUrl ? (
+                                    <img src={member.avatarUrl} alt={member.username} className="w-full h-full object-cover" />
+                                  ) : (
+                                    member.displayName?.charAt(0).toUpperCase() || member.username.charAt(0).toUpperCase()
+                                  )}
+                                </div>
+                                {isMemberOnline && (
+                                  <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500 border border-chatx-bg" />
+                                )}
                               </div>
-                              <div className="text-[10px] text-chatx-accent font-mono truncate">
-                                @{member.username}
+                              <div className="min-w-0">
+                                <div className="font-semibold text-xs text-white truncate">
+                                  {member.displayName || member.username}
+                                </div>
+                                <div className="text-[10px] text-chatx-accent font-mono truncate">
+                                  @{member.username}
+                                </div>
                               </div>
                             </div>
-                          </div>
 
-                          {member.role === 'ADMIN' && (
-                            <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-chatx-accent/15 text-chatx-accent border border-chatx-accent/30 shrink-0">
-                              ADMIN
-                            </span>
-                          )}
-                        </div>
-                      ))}
+                            {member.role === 'ADMIN' && (
+                              <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-chatx-accent/15 text-chatx-accent border border-chatx-accent/30 shrink-0">
+                                ADMIN
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
 
                     <div className="mt-auto pt-6 border-t border-chatx-border/60 text-[11px] text-chatx-text-secondary space-y-1">

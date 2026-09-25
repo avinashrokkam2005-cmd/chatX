@@ -49,6 +49,7 @@ class MessageServiceTest {
     @Mock private UserRepository userRepository;
     @Mock private BlockRepository blockRepository;
     @Mock private FriendshipRepository friendshipRepository;
+    @Mock private com.chatx.realtime.service.RealtimeMessagingService realtimeMessagingService;
 
     @InjectMocks
     private MessageService messageService;

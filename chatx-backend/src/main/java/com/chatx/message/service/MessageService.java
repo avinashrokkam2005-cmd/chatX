@@ -11,6 +11,7 @@ import com.chatx.conversation.enums.ConversationType;
 import com.chatx.conversation.repository.ConversationMemberRepository;
 import com.chatx.conversation.repository.ConversationRepository;
 import com.chatx.friendship.repository.FriendshipRepository;
+import com.chatx.realtime.service.RealtimeMessagingService;
 import com.chatx.message.dto.*;
 import com.chatx.message.entity.Message;
 import com.chatx.message.entity.MessageAttachment;
@@ -49,6 +50,7 @@ public class MessageService {
     private final UserRepository userRepository;
     private final BlockRepository blockRepository;
     private final FriendshipRepository friendshipRepository;
+    private final RealtimeMessagingService realtimeMessagingService;
 
     public MessageService(MessageRepository messageRepository,
                           MessageReactionRepository messageReactionRepository,
@@ -57,7 +59,8 @@ public class MessageService {
                           ConversationMemberRepository conversationMemberRepository,
                           UserRepository userRepository,
                           BlockRepository blockRepository,
-                          FriendshipRepository friendshipRepository) {
+                          FriendshipRepository friendshipRepository,
+                          RealtimeMessagingService realtimeMessagingService) {
         this.messageRepository = messageRepository;
         this.messageReactionRepository = messageReactionRepository;
         this.messageReceiptRepository = messageReceiptRepository;
@@ -66,6 +69,7 @@ public class MessageService {
         this.userRepository = userRepository;
         this.blockRepository = blockRepository;
         this.friendshipRepository = friendshipRepository;
+        this.realtimeMessagingService = realtimeMessagingService;
     }
 
     public MessageDto sendMessage(UUID currentUserId, SendMessageRequest request) {
@@ -161,7 +165,9 @@ public class MessageService {
         log.info("Message sent in conversation {} by user {} (ID: {})",
                 conversation.getId(), sender.getUsername(), savedMessage.getId());
 
-        return mapToDto(savedMessage, currentUserId, Collections.emptyList(), Collections.emptyList());
+        MessageDto dto = mapToDto(savedMessage, currentUserId, Collections.emptyList(), Collections.emptyList());
+        realtimeMessagingService.broadcastNewMessage(conversation.getId(), dto);
+        return dto;
     }
 
     @Transactional(readOnly = true)
@@ -230,7 +236,9 @@ public class MessageService {
 
         List<MessageReaction> reactions = messageReactionRepository.findByMessageIdWithUser(messageId);
         List<MessageReceipt> receipts = messageReceiptRepository.findByMessageId(messageId);
-        return mapToDto(saved, currentUserId, reactions, receipts);
+        MessageDto dto = mapToDto(saved, currentUserId, reactions, receipts);
+        realtimeMessagingService.broadcastMessageEdited(conv.getId(), dto);
+        return dto;
     }
 
     public MessageDto deleteMessage(UUID currentUserId, UUID messageId) {
@@ -262,7 +270,9 @@ public class MessageService {
 
         List<MessageReaction> reactions = messageReactionRepository.findByMessageIdWithUser(messageId);
         List<MessageReceipt> receipts = messageReceiptRepository.findByMessageId(messageId);
-        return mapToDto(saved, currentUserId, reactions, receipts);
+        MessageDto dto = mapToDto(saved, currentUserId, reactions, receipts);
+        realtimeMessagingService.broadcastMessageDeleted(conv.getId(), dto);
+        return dto;
     }
 
     public List<MessageReactionDto> toggleReaction(UUID currentUserId, UUID messageId, String emoji) {
@@ -287,7 +297,9 @@ public class MessageService {
         }
 
         List<MessageReaction> updatedReactions = messageReactionRepository.findByMessageIdWithUser(messageId);
-        return groupReactions(updatedReactions, currentUserId);
+        List<MessageReactionDto> dtos = groupReactions(updatedReactions, currentUserId);
+        realtimeMessagingService.broadcastReactionUpdated(message.getConversation().getId(), messageId, dtos);
+        return dtos;
     }
 
     public void markConversationAsRead(UUID currentUserId, UUID conversationId) {
