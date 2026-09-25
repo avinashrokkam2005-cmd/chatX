@@ -72,6 +72,15 @@ export const HomePage: React.FC = () => {
             <Search className="w-4 h-4" />
           </button>
 
+          {/* Chat Messages link */}
+          <Link
+            to="/chat"
+            className="p-2 rounded-lg bg-chatx-card hover:bg-chatx-hover border border-chatx-border text-chatx-text-secondary hover:text-white transition-colors"
+            title="Chat Conversations"
+          >
+            <MessageSquare className="w-4 h-4" />
+          </Link>
+
           {/* Friends link */}
           <Link
             to="/friends"

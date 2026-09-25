@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import friendApi from '../services/friendApi';
 import blockApi from '../services/blockApi';
+import conversationApi from '../../chat/services/conversationApi';
 import { FriendDto, FriendRequestDto, BlockDto } from '../../../types/friend';
 import {
   Users,
@@ -22,6 +23,7 @@ import { format } from 'date-fns';
 type Tab = 'friends' | 'received' | 'sent' | 'blocked';
 
 export const FriendsPage: React.FC = () => {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<Tab>('friends');
   const [friends, setFriends] = useState<FriendDto[]>([]);
   const [receivedRequests, setReceivedRequests] = useState<FriendRequestDto[]>([]);
@@ -241,7 +243,14 @@ export const FriendsPage: React.FC = () => {
 
                     <div className="flex items-center gap-2 shrink-0">
                       <button
-                        onClick={() => alert(`Direct conversation with @${friend.username} will be launched in Phase 5!`)}
+                        onClick={async () => {
+                          try {
+                            const conv = await conversationApi.getOrCreateDirectConversation(friend.friendId);
+                            navigate(`/chat/${conv.id}`);
+                          } catch (err: any) {
+                            toast.error(err.response?.data?.message || 'Failed to open conversation');
+                          }
+                        }}
                         className="btn-primary text-xs py-2 px-3 flex items-center gap-1.5"
                         title="Open direct message"
                       >

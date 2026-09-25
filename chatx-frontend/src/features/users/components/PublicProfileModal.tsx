@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ProfileDto } from '../../../types/profile';
 import profileApi from '../../profile/services/profileApi';
 import friendApi from '../../friends/services/friendApi';
 import blockApi from '../../friends/services/blockApi';
+import conversationApi from '../../chat/services/conversationApi';
 import { X, Calendar, Shield, AtSign, Loader2, UserPlus, MessageCircle, ShieldAlert } from 'lucide-react';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
@@ -14,6 +16,7 @@ interface PublicProfileModalProps {
 }
 
 export const PublicProfileModal: React.FC<PublicProfileModalProps> = ({ userId, username, onClose }) => {
+  const navigate = useNavigate();
   const [profile, setProfile] = useState<ProfileDto | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSendingRequest, setIsSendingRequest] = useState(false);
@@ -148,7 +151,15 @@ export const PublicProfileModal: React.FC<PublicProfileModalProps> = ({ userId, 
               <div className="mt-6 flex flex-col gap-2.5">
                 <div className="flex gap-2.5">
                   <button
-                    onClick={() => alert(`Direct conversation with @${profile.username} will be launched in Phase 5!`)}
+                    onClick={async () => {
+                      try {
+                        const conv = await conversationApi.getOrCreateDirectConversation(profile.userId);
+                        onClose();
+                        navigate(`/chat/${conv.id}`);
+                      } catch (err: any) {
+                        toast.error(err.response?.data?.message || 'Failed to start conversation');
+                      }
+                    }}
                     className="btn-primary flex-1 flex items-center justify-center gap-2 py-2.5 text-xs font-semibold"
                   >
                     <MessageCircle className="w-4 h-4" />

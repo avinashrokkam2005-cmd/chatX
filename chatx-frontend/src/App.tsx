@@ -5,6 +5,7 @@ import { RegisterPage } from './features/auth/pages/RegisterPage';
 import { HomePage } from './pages/app/HomePage';
 import { ProfilePage } from './features/profile/pages/ProfilePage';
 import { FriendsPage } from './features/friends/pages/FriendsPage';
+import { ChatPage } from './features/chat/pages/ChatPage';
 import { ProtectedRoute } from './components/common/ProtectedRoute';
 import { Toaster } from 'react-hot-toast';
 
@@ -33,6 +34,22 @@ function App() {
             element={
               <ProtectedRoute>
                 <HomePage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/chat"
+            element={
+              <ProtectedRoute>
+                <ChatPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/chat/:conversationId"
+            element={
+              <ProtectedRoute>
+                <ChatPage />
               </ProtectedRoute>
             }
           />
