@@ -41,6 +41,9 @@ class FriendshipServiceTest {
     @Mock
     private UserRepository userRepository;
 
+    @Mock
+    private com.chatx.notification.service.NotificationService notificationService;
+
     private FriendshipService friendshipService;
 
     private User userA;
@@ -52,7 +55,8 @@ class FriendshipServiceTest {
                 friendRequestRepository,
                 friendshipRepository,
                 blockRepository,
-                userRepository
+                userRepository,
+                notificationService
         );
 
         userA = new User("alice", "alice@example.com", "pass", "Alice");

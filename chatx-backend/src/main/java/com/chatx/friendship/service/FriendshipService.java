@@ -32,15 +32,18 @@ public class FriendshipService {
     private final FriendshipRepository friendshipRepository;
     private final BlockRepository blockRepository;
     private final UserRepository userRepository;
+    private final com.chatx.notification.service.NotificationService notificationService;
 
     public FriendshipService(FriendRequestRepository friendRequestRepository,
                              FriendshipRepository friendshipRepository,
                              BlockRepository blockRepository,
-                             UserRepository userRepository) {
+                             UserRepository userRepository,
+                             com.chatx.notification.service.NotificationService notificationService) {
         this.friendRequestRepository = friendRequestRepository;
         this.friendshipRepository = friendshipRepository;
         this.blockRepository = blockRepository;
         this.userRepository = userRepository;
+        this.notificationService = notificationService;
     }
 
     @Transactional
@@ -74,6 +77,20 @@ public class FriendshipService {
         FriendRequest saved = friendRequestRepository.save(friendRequest);
         log.info("Friend request sent from @{} to @{}", sender.getUsername(), receiver.getUsername());
 
+        try {
+            notificationService.createNotification(
+                    receiver,
+                    sender,
+                    com.chatx.notification.enums.NotificationType.FRIEND_REQUEST,
+                    "New Friend Request",
+                    "@" + sender.getUsername() + " sent you a friend request",
+                    saved.getId(),
+                    "FRIEND_REQUEST"
+            );
+        } catch (Exception e) {
+            log.warn("Failed to create friend request notification: {}", e.getMessage());
+        }
+
         return FriendRequestDto.fromEntity(saved);
     }
 
@@ -100,6 +117,20 @@ public class FriendshipService {
         Friendship savedFriendship = friendshipRepository.save(friendship);
 
         log.info("Friend request accepted: @{} and @{} are now friends", sender.getUsername(), receiver.getUsername());
+
+        try {
+            notificationService.createNotification(
+                    sender,
+                    receiver,
+                    com.chatx.notification.enums.NotificationType.FRIEND_ACCEPT,
+                    "Friend Request Accepted",
+                    "@" + receiver.getUsername() + " accepted your friend request",
+                    savedFriendship.getId(),
+                    "FRIENDSHIP"
+            );
+        } catch (Exception e) {
+            log.warn("Failed to create friend accept notification: {}", e.getMessage());
+        }
 
         return new FriendDto(savedFriendship.getId(), sender, savedFriendship.getCreatedAt());
     }

@@ -9,6 +9,8 @@ import wsService from '../../../services/websocket';
 import { ConversationDto } from '../../../types/conversation';
 import { MessageDto, MessageAttachmentDto } from '../../../types/message';
 import { CreateGroupModal } from '../components/CreateGroupModal';
+import { NotificationDropdown } from '../../notifications/components/NotificationDropdown';
+import { ReportModal } from '../../reports/components/ReportModal';
 import {
   MessageSquare,
   Search,
@@ -30,6 +32,8 @@ import {
   Paperclip,
   FileText,
   Download,
+  Flag,
+  Shield,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
@@ -57,6 +61,14 @@ export const ChatPage: React.FC = () => {
   const [editingMessage, setEditingMessage] = useState<MessageDto | null>(null);
   const [editInput, setEditInput] = useState('');
   const [activeReactionMessageId, setActiveReactionMessageId] = useState<string | null>(null);
+
+  // Moderation Report state
+  const [reportModalData, setReportModalData] = useState<{
+    isOpen: boolean;
+    targetType: 'USER' | 'MESSAGE' | 'CONVERSATION';
+    targetId: string;
+    targetLabel?: string;
+  } | null>(null);
 
   // File attachment state
   const [pendingAttachment, setPendingAttachment] = useState<MessageAttachmentDto | null>(null);
@@ -399,6 +411,7 @@ export const ChatPage: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-3">
+          <NotificationDropdown />
           <Link
             to="/friends"
             className="p-2 rounded-lg bg-chatx-card hover:bg-chatx-hover border border-chatx-border text-chatx-text-secondary hover:text-white transition-colors"
@@ -406,6 +419,15 @@ export const ChatPage: React.FC = () => {
           >
             <Users className="w-4 h-4" />
           </Link>
+          {(currentUser?.role === 'ADMIN' || currentUser?.role === 'SUPER_ADMIN') && (
+            <Link
+              to="/admin"
+              className="p-2 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-400 transition-colors"
+              title="Admin Moderation Portal"
+            >
+              <Shield className="w-4 h-4" />
+            </Link>
+          )}
           <Link
             to="/profile"
             className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-chatx-card transition-colors"
@@ -600,6 +622,26 @@ export const ChatPage: React.FC = () => {
                 </div>
 
                 <div className="flex items-center gap-2">
+                  <button
+                    onClick={() =>
+                      setReportModalData({
+                        isOpen: true,
+                        targetType: selectedConv.type === 'DIRECT' ? 'USER' : 'CONVERSATION',
+                        targetId:
+                          selectedConv.type === 'DIRECT' && selectedConv.directParticipant
+                            ? selectedConv.directParticipant.id
+                            : selectedConv.id,
+                        targetLabel:
+                          selectedConv.type === 'DIRECT'
+                            ? `@${selectedConv.directParticipant?.username || selectedConv.name}`
+                            : selectedConv.name,
+                      })
+                    }
+                    className="p-2 rounded-lg bg-chatx-card hover:bg-chatx-hover border border-chatx-border text-chatx-text-secondary hover:text-amber-400 transition-colors"
+                    title={selectedConv.type === 'DIRECT' ? 'Report user' : 'Report conversation'}
+                  >
+                    <Flag className="w-4 h-4" />
+                  </button>
                   <button
                     onClick={() => setShowMemberDetails(!showMemberDetails)}
                     className="p-2 rounded-lg bg-chatx-card hover:bg-chatx-hover border border-chatx-border text-chatx-text-secondary hover:text-white transition-colors"
@@ -810,6 +852,22 @@ export const ChatPage: React.FC = () => {
                                       <Trash2 className="w-3.5 h-3.5" />
                                     </button>
                                   )}
+
+                                  {/* Report message button */}
+                                  <button
+                                    onClick={() =>
+                                      setReportModalData({
+                                        isOpen: true,
+                                        targetType: 'MESSAGE',
+                                        targetId: msg.id,
+                                        targetLabel: `Message by @${msg.senderUsername}`,
+                                      })
+                                    }
+                                    className="p-1 rounded hover:bg-chatx-card text-chatx-text-secondary hover:text-amber-400 transition-colors"
+                                    title="Report message"
+                                  >
+                                    <Flag className="w-3.5 h-3.5" />
+                                  </button>
                                 </div>
                               )}
 
@@ -1081,6 +1139,17 @@ export const ChatPage: React.FC = () => {
           navigate(`/chat/${newConv.id}`);
         }}
       />
+
+      {/* Report Modal */}
+      {reportModalData && (
+        <ReportModal
+          isOpen={reportModalData.isOpen}
+          onClose={() => setReportModalData(null)}
+          targetType={reportModalData.targetType}
+          targetId={reportModalData.targetId}
+          targetLabel={reportModalData.targetLabel}
+        />
+      )}
     </div>
   );
 };
