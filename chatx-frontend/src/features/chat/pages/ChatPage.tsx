@@ -4,9 +4,10 @@ import { useAuth } from '../../../context/AuthContext';
 import conversationApi from '../services/conversationApi';
 import messageApi from '../services/messageApi';
 import presenceApi from '../../presence/services/presenceApi';
+import fileApi from '../../files/services/fileApi';
 import wsService from '../../../services/websocket';
 import { ConversationDto } from '../../../types/conversation';
-import { MessageDto } from '../../../types/message';
+import { MessageDto, MessageAttachmentDto } from '../../../types/message';
 import { CreateGroupModal } from '../components/CreateGroupModal';
 import {
   MessageSquare,
@@ -26,6 +27,9 @@ import {
   X,
   Check,
   CheckCheck,
+  Paperclip,
+  FileText,
+  Download,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
@@ -53,6 +57,11 @@ export const ChatPage: React.FC = () => {
   const [editingMessage, setEditingMessage] = useState<MessageDto | null>(null);
   const [editInput, setEditInput] = useState('');
   const [activeReactionMessageId, setActiveReactionMessageId] = useState<string | null>(null);
+
+  // File attachment state
+  const [pendingAttachment, setPendingAttachment] = useState<MessageAttachmentDto | null>(null);
+  const [isUploadingFile, setIsUploadingFile] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Real-Time Presence & Typing state
   const [onlineUsers, setOnlineUsers] = useState<Record<string, boolean>>({});
@@ -242,9 +251,36 @@ export const ChatPage: React.FC = () => {
     }, 2500);
   };
 
+  const handleFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error('File exceeds 10MB limit');
+      return;
+    }
+
+    try {
+      setIsUploadingFile(true);
+      const res = await fileApi.uploadFile(file);
+      setPendingAttachment({
+        fileName: res.fileName,
+        fileUrl: res.fileUrl,
+        fileType: res.fileType,
+        fileSize: res.fileSize,
+      });
+      toast.success('File attached');
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'File upload failed');
+    } finally {
+      setIsUploadingFile(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!messageInput.trim() || !selectedConv || isSending) return;
+    if ((!messageInput.trim() && !pendingAttachment) || !selectedConv || isSending) return;
 
     const content = messageInput.trim();
     setIsSending(true);
@@ -254,10 +290,18 @@ export const ChatPage: React.FC = () => {
     wsService.sendTyping(selectedConv.id, false);
 
     try {
+      const type = pendingAttachment
+        ? pendingAttachment.fileType?.startsWith('image/')
+          ? 'IMAGE'
+          : 'FILE'
+        : 'TEXT';
+
       const sentMsg = await messageApi.sendMessage({
         conversationId: selectedConv.id,
-        content,
+        content: content || (pendingAttachment ? `[${pendingAttachment.fileName}]` : ''),
+        type,
         replyToMessageId: replyingTo ? replyingTo.id : undefined,
+        attachments: pendingAttachment ? [pendingAttachment] : undefined,
       });
 
       setMessages((prev) => {
@@ -266,6 +310,7 @@ export const ChatPage: React.FC = () => {
       });
       setMessageInput('');
       setReplyingTo(null);
+      setPendingAttachment(null);
 
       // Update sidebar snippet
       setConversations((prev) =>
@@ -273,7 +318,7 @@ export const ChatPage: React.FC = () => {
           c.id === selectedConv.id
             ? {
                 ...c,
-                lastMessageContent: content,
+                lastMessageContent: content || `[${sentMsg.type}]`,
                 lastMessageAt: sentMsg.createdAt,
                 lastMessageSenderUsername: currentUser?.username,
               }
@@ -628,6 +673,43 @@ export const ChatPage: React.FC = () => {
                                     : 'bg-chatx-surface border border-chatx-border text-white rounded-bl-none'
                                 }`}
                               >
+                                {/* Media / File Attachments */}
+                                {!isDeleted && msg.attachments && msg.attachments.length > 0 && (
+                                  <div className="space-y-2 mb-2">
+                                    {msg.attachments.map((att, idx) => {
+                                      const isImg = att.fileType?.startsWith('image/') || /\.(jpg|jpeg|png|gif|webp)$/i.test(att.fileName);
+                                      const fullUrl = att.fileUrl.startsWith('http') ? att.fileUrl : `http://localhost:8080${att.fileUrl}`;
+                                      return isImg ? (
+                                        <div key={idx} className="rounded-xl overflow-hidden max-w-xs cursor-pointer border border-white/10" onClick={() => window.open(fullUrl, '_blank')}>
+                                          <img src={fullUrl} alt={att.fileName} className="w-full h-auto max-h-60 object-cover hover:opacity-90 transition-opacity" />
+                                        </div>
+                                      ) : (
+                                        <a
+                                          key={idx}
+                                          href={fullUrl}
+                                          target="_blank"
+                                          rel="noreferrer"
+                                          download={att.fileName}
+                                          className={`flex items-center gap-2 p-2 rounded-xl text-xs transition-colors ${
+                                            isOwn ? 'bg-black/20 hover:bg-black/30 text-white' : 'bg-chatx-card hover:bg-chatx-card/80 text-chatx-text'
+                                          }`}
+                                        >
+                                          <FileText className="w-4 h-4 shrink-0 text-chatx-accent" />
+                                          <div className="flex-1 min-w-0">
+                                            <p className="font-medium truncate">{att.fileName}</p>
+                                            {att.fileSize && (
+                                              <p className="text-[10px] opacity-70">
+                                                {(att.fileSize / 1024).toFixed(1)} KB
+                                              </p>
+                                            )}
+                                          </div>
+                                          <Download className="w-3.5 h-3.5 shrink-0 opacity-70" />
+                                        </a>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+
                                 <p className="whitespace-pre-wrap break-words">{msg.content}</p>
 
                                 {/* Meta: time, edited badge, receipt status */}
@@ -818,6 +900,27 @@ export const ChatPage: React.FC = () => {
                       </div>
                     )}
 
+                    {/* Attachment preview banner */}
+                    {pendingAttachment && (
+                      <div className="mb-2 p-2 px-3 rounded-lg bg-chatx-card border border-chatx-border flex items-center justify-between gap-2 text-xs">
+                        <div className="flex items-center gap-2 truncate">
+                          <Paperclip className="w-3.5 h-3.5 text-chatx-accent shrink-0" />
+                          <span className="text-white font-medium truncate">{pendingAttachment.fileName}</span>
+                          {pendingAttachment.fileSize && (
+                            <span className="text-[10px] text-chatx-text-secondary">
+                              ({(pendingAttachment.fileSize / 1024).toFixed(1)} KB)
+                            </span>
+                          )}
+                        </div>
+                        <button
+                          onClick={() => setPendingAttachment(null)}
+                          className="text-chatx-text-secondary hover:text-white p-1"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
+
                     {editingMessage ? (
                       <div className="flex items-center gap-2">
                         <input
@@ -842,6 +945,26 @@ export const ChatPage: React.FC = () => {
                     ) : (
                       <form onSubmit={handleSendMessage} className="flex items-center gap-2 sm:gap-3">
                         <input
+                          type="file"
+                          ref={fileInputRef}
+                          onChange={handleFileSelected}
+                          className="hidden"
+                          accept="image/*,video/mp4,audio/*,application/pdf,application/zip"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => fileInputRef.current?.click()}
+                          disabled={isUploadingFile || isSending}
+                          className="p-2.5 rounded-xl bg-chatx-card hover:bg-chatx-hover border border-chatx-border text-chatx-text-secondary hover:text-white transition-colors shrink-0"
+                          title="Attach file or image"
+                        >
+                          {isUploadingFile ? (
+                            <Loader2 className="w-4 h-4 animate-spin text-chatx-accent" />
+                          ) : (
+                            <Paperclip className="w-4 h-4" />
+                          )}
+                        </button>
+                        <input
                           type="text"
                           value={messageInput}
                           onChange={handleInputChange}
@@ -851,7 +974,7 @@ export const ChatPage: React.FC = () => {
                         />
                         <button
                           type="submit"
-                          disabled={!messageInput.trim() || isSending}
+                          disabled={(!messageInput.trim() && !pendingAttachment) || isSending}
                           className="btn-primary py-2.5 px-4 flex items-center justify-center gap-1.5 shrink-0"
                         >
                           {isSending ? (
