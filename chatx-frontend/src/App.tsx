@@ -7,6 +7,8 @@ import { ProfilePage } from './features/profile/pages/ProfilePage';
 import { FriendsPage } from './features/friends/pages/FriendsPage';
 import { ChatPage } from './features/chat/pages/ChatPage';
 import { ProtectedRoute } from './components/common/ProtectedRoute';
+import { AdminRoute } from './features/admin/components/AdminRoute';
+import { AdminDashboardPage } from './features/admin/pages/AdminDashboardPage';
 import { Toaster } from 'react-hot-toast';
 
 function App() {
@@ -75,6 +77,14 @@ function App() {
               <ProtectedRoute>
                 <ProfilePage />
               </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin"
+            element={
+              <AdminRoute>
+                <AdminDashboardPage />
+              </AdminRoute>
             }
           />
 

@@ -2,6 +2,8 @@ package com.chatx.user.repository;
 
 import com.chatx.user.entity.User;
 import com.chatx.user.enums.AccountStatus;
+import com.chatx.user.enums.UserRole;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -28,4 +30,15 @@ public interface UserRepository extends JpaRepository<User, UUID> {
 
     @Query("SELECT u FROM User u WHERE u.usernameLower LIKE CONCAT(:prefix, '%') AND u.accountStatus = :status")
     List<User> searchByUsernamePrefix(@Param("prefix") String prefix, @Param("status") AccountStatus status, Pageable pageable);
+
+    long countByAccountStatus(AccountStatus accountStatus);
+
+    @Query("SELECT u FROM User u WHERE " +
+           "(:query IS NULL OR :query = '' OR LOWER(u.username) LIKE LOWER(CONCAT('%', :query, '%')) OR LOWER(u.email) LIKE LOWER(CONCAT('%', :query, '%')) OR LOWER(u.displayName) LIKE LOWER(CONCAT('%', :query, '%'))) AND " +
+           "(:status IS NULL OR u.accountStatus = :status) AND " +
+           "(:role IS NULL OR u.role = :role)")
+    Page<User> findUsersByAdminCriteria(@Param("query") String query,
+                                        @Param("status") AccountStatus status,
+                                        @Param("role") UserRole role,
+                                        Pageable pageable);
 }
