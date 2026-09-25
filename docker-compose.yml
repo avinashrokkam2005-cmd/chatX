@@ -33,6 +33,46 @@ services:
       timeout: 5s
       retries: 5
 
+  backend:
+    build:
+      context: ./chatx-backend
+      dockerfile: Dockerfile
+    container_name: chatx-backend
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      CHATX_DB_HOST: mysql
+      CHATX_DB_PORT: 3306
+      CHATX_DB_NAME: chatx_db
+      CHATX_DB_USERNAME: chatx_user
+      CHATX_DB_PASSWORD: chatx_pass
+      CHATX_REDIS_HOST: redis
+      CHATX_REDIS_PORT: 6379
+      CHATX_JWT_SECRET: ${CHATX_JWT_SECRET:-9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b}
+      CHATX_CORS_ORIGINS: http://localhost,http://localhost:80,http://localhost:5173
+      CHATX_UPLOAD_DIR: /app/uploads
+    ports:
+      - "8080:8080"
+    volumes:
+      - uploads_data:/app/uploads
+
+  frontend:
+    build:
+      context: ./chatx-frontend
+      dockerfile: Dockerfile
+    container_name: chatx-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+
 volumes:
   mysql_data:
   redis_data:
+  uploads_data:
