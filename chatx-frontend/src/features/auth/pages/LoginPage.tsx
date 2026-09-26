@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../context/AuthContext';
-import { MessageSquare, Lock, User, Eye, EyeOff, AlertCircle, Loader2 } from 'lucide-react';
+import { MessageSquare, Lock, User, Eye, EyeOff, AlertCircle, Loader2, ShieldCheck } from 'lucide-react';
 
 export const LoginPage: React.FC = () => {
   const [usernameOrEmail, setUsernameOrEmail] = useState('');
@@ -30,7 +30,7 @@ export const LoginPage: React.FC = () => {
     try {
       setIsSubmitting(true);
       await login(usernameOrEmail.trim(), password);
-      navigate('/');
+      navigate('/chat');
     } catch (err: any) {
       const message = err.response?.data?.message || 'Login failed. Please check your credentials.';
       setErrorMessage(message);
@@ -40,104 +40,128 @@ export const LoginPage: React.FC = () => {
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen px-4 bg-chatx-bg">
-      <div className="w-full max-w-md">
-        {/* Logo & Header */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-chatx-surface border border-chatx-border shadow-lg shadow-chatx-accent/5 mb-4">
-            <MessageSquare className="w-7 h-7 text-chatx-accent" />
+    <div className="min-h-screen bg-[#111b21] flex flex-col font-sans select-none relative">
+      {/* Top Emerald Header Strip (signature WhatsApp Web banner) */}
+      <div className="h-[222px] bg-wa-green w-full absolute top-0 left-0 z-0">
+        <div className="max-w-5xl mx-auto px-6 pt-7 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center text-white shadow-sm">
+            <MessageSquare className="w-6 h-6 fill-white" />
           </div>
-          <h1 className="text-3xl font-bold tracking-tight text-chatx-text">Welcome back</h1>
-          <p className="text-chatx-text-secondary mt-2 text-sm">
-            Sign in to your ChatX account
-          </p>
+          <span className="text-white font-medium text-sm tracking-widest uppercase">ChatX Web</span>
         </div>
+      </div>
 
-        {/* Form Card */}
-        <div className="glass-panel p-8 shadow-xl">
-          {errorMessage && (
-            <div className="mb-6 p-4 rounded-lg bg-chatx-danger/10 border border-chatx-danger/20 flex items-start gap-3 text-chatx-danger text-sm animate-in fade-in duration-200">
-              <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
-              <span>{errorMessage}</span>
+      {/* Main Elevated Container */}
+      <div className="flex-1 flex items-center justify-center px-4 py-12 z-10">
+        <div className="w-full max-w-4xl bg-wa-panel border border-wa-border/70 rounded-2xl shadow-2xl p-8 sm:p-12 flex flex-col md:flex-row gap-10 mt-12">
+          {/* Left Column: Instructions */}
+          <div className="flex-1 space-y-6">
+            <h1 className="text-2xl sm:text-3xl font-light text-wa-text leading-tight">
+              To use ChatX on your computer:
+            </h1>
+            <ol className="space-y-4 text-sm text-wa-text-secondary leading-relaxed">
+              <li className="flex items-start gap-3">
+                <span className="font-semibold text-wa-text">1.</span>
+                <span>Open ChatX on your device or sign in with your account.</span>
+              </li>
+              <li className="flex items-start gap-3">
+                <span className="font-semibold text-wa-text">2.</span>
+                <span>Enter your username or registered email address.</span>
+              </li>
+              <li className="flex items-start gap-3">
+                <span className="font-semibold text-wa-text">3.</span>
+                <span>Enter your account password to decrypt and synchronize your chats.</span>
+              </li>
+            </ol>
+
+            <div className="pt-4 border-t border-wa-border/40 flex items-center gap-3 text-xs text-wa-text-secondary">
+              <ShieldCheck className="w-4 h-4 text-wa-green shrink-0" />
+              <span>Protected with real-time end-to-end WebSocket encryption.</span>
             </div>
-          )}
 
-          <form onSubmit={handleSubmit} className="space-y-5">
-            {/* Username or Email Input */}
-            <div>
-              <label className="block text-xs font-semibold text-chatx-text-secondary uppercase tracking-wider mb-2">
-                Username or Email
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-chatx-text-secondary">
-                  <User className="w-5 h-5" />
-                </div>
-                <input
-                  type="text"
-                  value={usernameOrEmail}
-                  onChange={(e) => setUsernameOrEmail(e.target.value)}
-                  placeholder="avinash or avinash@example.com"
-                  className="input-field pl-11"
-                  autoComplete="username"
-                  required
-                />
+            <div className="pt-2">
+              <span className="text-xs text-wa-text-secondary">Default Admin: </span>
+              <span className="text-xs font-mono text-wa-green bg-wa-input px-2 py-0.5 rounded border border-wa-border">
+                admin / Admin@1234
+              </span>
+            </div>
+          </div>
+
+          {/* Right Column: Credentials Form */}
+          <div className="w-full md:w-80 flex flex-col justify-center">
+            {errorMessage && (
+              <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/20 flex items-start gap-2.5 text-red-400 text-xs animate-in fade-in duration-200">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                <span>{errorMessage}</span>
               </div>
-            </div>
+            )}
 
-            {/* Password Input */}
-            <div>
-              <label className="block text-xs font-semibold text-chatx-text-secondary uppercase tracking-wider mb-2">
-                Password
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-chatx-text-secondary">
-                  <Lock className="w-5 h-5" />
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-wa-green uppercase tracking-wider mb-1.5">
+                  Username or Email
+                </label>
+                <div className="relative">
+                  <User className="w-4 h-4 text-wa-text-secondary absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={usernameOrEmail}
+                    onChange={(e) => setUsernameOrEmail(e.target.value)}
+                    placeholder="avinash or avinash@example.com"
+                    className="w-full bg-wa-input border border-wa-border rounded-lg pl-9 pr-3.5 py-2.5 text-sm text-wa-text placeholder-wa-text-secondary focus:border-wa-green focus:outline-none"
+                    autoComplete="username"
+                    required
+                  />
                 </div>
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Enter your password"
-                  className="input-field pl-11 pr-11"
-                  autoComplete="current-password"
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-chatx-text-secondary hover:text-chatx-text transition-colors"
-                >
-                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                </button>
               </div>
+
+              <div>
+                <label className="block text-xs font-medium text-wa-green uppercase tracking-wider mb-1.5">
+                  Password
+                </label>
+                <div className="relative">
+                  <Lock className="w-4 h-4 text-wa-text-secondary absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Enter password"
+                    className="w-full bg-wa-input border border-wa-border rounded-lg pl-9 pr-10 py-2.5 text-sm text-wa-text placeholder-wa-text-secondary focus:border-wa-green focus:outline-none"
+                    autoComplete="current-password"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-wa-text-secondary hover:text-wa-text transition-colors"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="w-full py-2.5 px-4 rounded-lg bg-wa-green hover:bg-emerald-600 text-wa-bg font-semibold text-sm transition-colors flex items-center justify-center gap-2 mt-4 shadow-md shadow-wa-green/10 disabled:opacity-50"
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Signing in...</span>
+                  </>
+                ) : (
+                  <span>Sign in</span>
+                )}
+              </button>
+            </form>
+
+            <div className="mt-6 text-center text-xs text-wa-text-secondary">
+              Need an account?{' '}
+              <Link to="/register" className="text-wa-green hover:underline font-medium">
+                Create account
+              </Link>
             </div>
-
-            {/* Submit Button */}
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="btn-primary w-full flex items-center justify-center gap-2 mt-2 shadow-lg shadow-chatx-accent/20"
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  <span>Signing in...</span>
-                </>
-              ) : (
-                <span>Sign in</span>
-              )}
-            </button>
-          </form>
-
-          {/* Footer link */}
-          <div className="mt-6 text-center text-sm text-chatx-text-secondary">
-            Don't have an account?{' '}
-            <Link
-              to="/register"
-              className="text-chatx-accent hover:text-chatx-accent-hover font-semibold transition-colors"
-            >
-              Create account
-            </Link>
           </div>
         </div>
       </div>

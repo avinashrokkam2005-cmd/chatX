@@ -4,72 +4,99 @@
 
 @layer base {
   html {
-    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    font-family: 'Segoe UI', 'Helvetica Neue', 'Helvetica', 'Lucida Grande', Arial, system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
 
   body {
-    @apply bg-chatx-bg text-chatx-text;
+    @apply bg-wa-bg text-wa-text overflow-hidden;
   }
 
-  /* Custom scrollbar for dark theme */
+  /* WhatsApp Web scrollbars */
   ::-webkit-scrollbar {
     width: 6px;
     height: 6px;
   }
 
   ::-webkit-scrollbar-track {
-    @apply bg-chatx-bg;
+    background: transparent;
   }
 
   ::-webkit-scrollbar-thumb {
-    @apply bg-chatx-border rounded-full;
+    @apply bg-wa-text-muted/30 rounded-full;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    @apply bg-chatx-text-secondary;
+    @apply bg-wa-text-muted/60;
   }
 }
 
 @layer components {
-  /* Glass panel effect */
-  .glass-panel {
-    @apply bg-chatx-surface/80 backdrop-blur-sm border border-chatx-border/50 rounded-xl;
+  /* WhatsApp Bubble Tails */
+  .wa-tail-out {
+    position: relative;
+  }
+  .wa-tail-out::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: -8px;
+    width: 8px;
+    height: 13px;
+    background: radial-gradient(circle at 0% 100%, transparent 8px, #005c4b 8px);
   }
 
-  /* Input styling */
-  .input-field {
-    @apply w-full px-4 py-3 bg-chatx-card border border-chatx-border rounded-lg
-           text-chatx-text placeholder-chatx-text-secondary
-           focus:outline-none focus:ring-2 focus:ring-chatx-accent/50 focus:border-chatx-accent
-           transition-all duration-200;
+  .wa-tail-in {
+    position: relative;
+  }
+  .wa-tail-in::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -8px;
+    width: 8px;
+    height: 13px;
+    background: radial-gradient(circle at 100% 100%, transparent 8px, #202c33 8px);
   }
 
-  /* Primary button */
+  /* WhatsApp Input Field */
+  .wa-input-field {
+    @apply w-full px-4 py-2.5 bg-wa-input rounded-lg text-wa-text placeholder-wa-text-secondary text-sm
+           focus:outline-none transition-all;
+  }
+
+  /* WhatsApp Action Buttons */
+  .wa-icon-btn {
+    @apply p-2 rounded-full text-wa-text-secondary hover:text-wa-text hover:bg-wa-hover active:bg-wa-active transition-colors;
+  }
+
+  /* Primary WhatsApp Green Button */
   .btn-primary {
-    @apply px-6 py-3 bg-chatx-accent text-white rounded-lg
-           hover:bg-chatx-accent-hover
-           disabled:opacity-50 disabled:cursor-not-allowed
-           transition-colors duration-200 font-medium;
+    @apply px-5 py-2.5 bg-wa-green text-[#111b21] font-semibold rounded-lg hover:bg-wa-green-hover
+           disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm;
   }
 
-  /* Secondary button */
+  /* Secondary Button */
   .btn-secondary {
-    @apply px-6 py-3 bg-chatx-card text-chatx-text rounded-lg
-           border border-chatx-border
-           hover:bg-chatx-hover
-           disabled:opacity-50 disabled:cursor-not-allowed
-           transition-colors duration-200 font-medium;
+    @apply px-5 py-2.5 bg-wa-header text-wa-text font-medium rounded-lg hover:bg-wa-active
+           border border-wa-border transition-colors text-sm;
   }
 
-  /* Danger button */
-  .btn-danger {
-    @apply px-6 py-3 bg-chatx-danger/10 text-chatx-danger rounded-lg
-           border border-chatx-danger/20
-           hover:bg-chatx-danger/20
-           disabled:opacity-50 disabled:cursor-not-allowed
-           transition-colors duration-200 font-medium;
+  /* Glass panel effect fallback */
+  .glass-panel {
+    @apply bg-wa-panel border border-wa-border rounded-xl;
+  }
+
+  .input-field {
+    @apply w-full px-4 py-2.5 bg-wa-input border border-wa-border rounded-lg
+           text-wa-text placeholder-wa-text-secondary
+           focus:outline-none focus:border-wa-green
+           transition-all duration-200 text-sm;
+  }
+
+  .btn-ghost {
+    @apply p-2 rounded-lg text-wa-text-secondary hover:text-wa-text hover:bg-wa-hover transition-colors;
   }
 }
 

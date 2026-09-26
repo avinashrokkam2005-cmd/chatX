@@ -11,17 +11,17 @@ import { MessageDto, MessageAttachmentDto } from '../../../types/message';
 import { CreateGroupModal } from '../components/CreateGroupModal';
 import { NotificationDropdown } from '../../notifications/components/NotificationDropdown';
 import { ReportModal } from '../../reports/components/ReportModal';
+import { ConversationInfoDrawer } from '../components/ConversationInfoDrawer';
+import { ProfileDrawer } from '../components/ProfileDrawer';
+import { NewChatDrawer } from '../components/NewChatDrawer';
 import {
   MessageSquare,
   Search,
-  Plus,
   Users,
   Send,
   MoreVertical,
   ArrowLeft,
   Loader2,
-  Calendar,
-  Sparkles,
   Smile,
   Reply,
   Pencil,
@@ -34,6 +34,13 @@ import {
   Download,
   Flag,
   Shield,
+  CircleDashed,
+  MessageSquarePlus,
+  Filter,
+  Lock,
+  Mic,
+  Image as ImageIcon,
+  Laptop,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
@@ -42,15 +49,22 @@ const QUICK_REACTIONS = ['👍', '❤️', '😂', '🔥', '🎉', '😮'];
 
 export const ChatPage: React.FC = () => {
   const { conversationId } = useParams<{ conversationId?: string }>();
-  const { user: currentUser } = useAuth();
+  const { user: currentUser, logout } = useAuth();
   const navigate = useNavigate();
 
   const [conversations, setConversations] = useState<ConversationDto[]>([]);
   const [selectedConv, setSelectedConv] = useState<ConversationDto | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [filterUnreadOnly, setFilterUnreadOnly] = useState(false);
   const [isLoadingChats, setIsLoadingChats] = useState(true);
+
+  // Drawers and Modals state
   const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
-  const [showMemberDetails, setShowMemberDetails] = useState(false);
+  const [isProfileDrawerOpen, setIsProfileDrawerOpen] = useState(false);
+  const [isNewChatDrawerOpen, setIsNewChatDrawerOpen] = useState(false);
+  const [isInfoDrawerOpen, setIsInfoDrawerOpen] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isAttachmentMenuOpen, setIsAttachmentMenuOpen] = useState(false);
 
   // Messaging state
   const [messages, setMessages] = useState<MessageDto[]>([]);
@@ -104,12 +118,11 @@ export const ChatPage: React.FC = () => {
         });
         return () => sub?.unsubscribe();
       }).catch((err) => {
-        console.warn('[WebSocket] Connection failed, using HTTP polling fallback:', err);
+        console.warn('[WebSocket] Connection failed, fallback active:', err);
       });
     }
 
     return () => {
-      // Cleanup typing timers
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
       if (sendTypingTimeoutRef.current) clearTimeout(sendTypingTimeoutRef.current);
     };
@@ -286,6 +299,7 @@ export const ChatPage: React.FC = () => {
       toast.error(err.response?.data?.message || 'File upload failed');
     } finally {
       setIsUploadingFile(false);
+      setIsAttachmentMenuOpen(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
@@ -297,7 +311,6 @@ export const ChatPage: React.FC = () => {
     const content = messageInput.trim();
     setIsSending(true);
 
-    // Turn off typing indicator immediately on send
     if (sendTypingTimeoutRef.current) clearTimeout(sendTypingTimeoutRef.current);
     wsService.sendTyping(selectedConv.id, false);
 
@@ -389,445 +402,558 @@ export const ChatPage: React.FC = () => {
     selectedConv.directParticipant &&
     onlineUsers[selectedConv.directParticipant.id];
 
-  const filteredConversations = conversations.filter((c) =>
-    c.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredConversations = conversations
+    .filter((c) => c.name.toLowerCase().includes(searchQuery.toLowerCase()))
+    .filter((c) => (filterUnreadOnly ? c.unreadCount > 0 : true));
 
   return (
-    <div className="h-screen flex flex-col bg-chatx-bg text-chatx-text overflow-hidden">
-      {/* Top Navbar */}
-      <header className="border-b border-chatx-border bg-chatx-surface/90 backdrop-blur-md px-6 py-3 flex items-center justify-between z-20 shrink-0">
-        <div className="flex items-center gap-4">
-          <Link to="/" className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-chatx-accent/10 border border-chatx-accent/20 flex items-center justify-center text-chatx-accent">
-              <MessageSquare className="w-4 h-4" />
-            </div>
-            <span className="font-bold text-base text-white tracking-tight">ChatX</span>
-          </Link>
-          <span className="text-xs px-2 py-0.5 rounded bg-chatx-card text-chatx-text-secondary border border-chatx-border flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            <span>Real-Time WebSocket Active</span>
-          </span>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <NotificationDropdown />
-          <Link
-            to="/friends"
-            className="p-2 rounded-lg bg-chatx-card hover:bg-chatx-hover border border-chatx-border text-chatx-text-secondary hover:text-white transition-colors"
-            title="Friends"
+    <div className="h-screen w-screen flex bg-wa-bg text-wa-text overflow-hidden font-sans select-none">
+      {/* ======================================================== */}
+      {/* LEFT PANEL: Chats List / Sidebars                        */}
+      {/* ======================================================== */}
+      <aside
+        className={`w-full sm:w-[400px] md:w-[450px] border-r border-wa-border bg-wa-bg flex flex-col shrink-0 relative ${
+          selectedConv ? 'hidden sm:flex' : 'flex'
+        }`}
+      >
+        {/* Sidebar Header (WhatsApp Web 60px header) */}
+        <header className="h-[60px] bg-wa-header px-4 flex items-center justify-between border-b border-wa-border shrink-0 z-10">
+          {/* User Profile Avatar */}
+          <div
+            onClick={() => setIsProfileDrawerOpen(true)}
+            className="w-10 h-10 rounded-full overflow-hidden bg-wa-panel border border-wa-border cursor-pointer flex items-center justify-center text-wa-green font-bold text-sm hover:opacity-90 transition-opacity"
+            title="Profile"
           >
-            <Users className="w-4 h-4" />
-          </Link>
-          {(currentUser?.role === 'ADMIN' || currentUser?.role === 'SUPER_ADMIN') && (
-            <Link
-              to="/admin"
-              className="p-2 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-400 transition-colors"
-              title="Admin Moderation Portal"
-            >
-              <Shield className="w-4 h-4" />
-            </Link>
-          )}
-          <Link
-            to="/profile"
-            className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-chatx-card transition-colors"
-          >
-            <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-chatx-accent to-purple-600 flex items-center justify-center font-bold text-white text-xs overflow-hidden">
-              {currentUser?.avatarUrl ? (
-                <img src={currentUser.avatarUrl} alt={currentUser.username} className="w-full h-full object-cover" />
-              ) : (
-                currentUser?.username.charAt(0).toUpperCase()
-              )}
-            </div>
-            <span className="text-xs font-semibold text-white hidden sm:inline">@{currentUser?.username}</span>
-          </Link>
-        </div>
-      </header>
-
-      {/* Main Chat Layout */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Left Sidebar: Conversations List */}
-        <aside
-          className={`w-full sm:w-80 md:w-96 border-r border-chatx-border bg-chatx-surface/40 flex flex-col shrink-0 ${
-            selectedConv ? 'hidden sm:flex' : 'flex'
-          }`}
-        >
-          {/* Header & New Group button */}
-          <div className="p-4 border-b border-chatx-border/60 flex items-center justify-between">
-            <h2 className="text-base font-bold text-white">Conversations</h2>
-            <button
-              onClick={() => setIsGroupModalOpen(true)}
-              className="btn-primary text-xs py-1.5 px-3 flex items-center gap-1.5"
-              title="Create new group chat"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>New Group</span>
-            </button>
-          </div>
-
-          {/* Search conversations */}
-          <div className="p-3 border-b border-chatx-border/40">
-            <div className="relative">
-              <Search className="w-4 h-4 text-chatx-text-secondary absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Filter chats..."
-                className="input-field pl-9 py-1.5 text-xs bg-chatx-card/60"
-              />
-            </div>
-          </div>
-
-          {/* Conversations Scroll Area */}
-          <div className="flex-1 overflow-y-auto divide-y divide-chatx-border/30 p-2">
-            {isLoadingChats ? (
-              <div className="py-16 flex flex-col items-center justify-center gap-2">
-                <Loader2 className="w-6 h-6 text-chatx-accent animate-spin" />
-                <span className="text-xs text-chatx-text-secondary">Loading chats...</span>
-              </div>
-            ) : filteredConversations.length > 0 ? (
-              filteredConversations.map((conv) => {
-                const isSelected = selectedConv?.id === conv.id;
-                const isOnline =
-                  conv.type === 'DIRECT' &&
-                  conv.directParticipant &&
-                  onlineUsers[conv.directParticipant.id];
-
-                return (
-                  <div
-                    key={conv.id}
-                    onClick={() => handleSelectConversation(conv)}
-                    className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all ${
-                      isSelected
-                        ? 'bg-chatx-accent/15 border border-chatx-accent/30'
-                        : 'hover:bg-chatx-hover/60 border border-transparent'
-                    }`}
-                  >
-                    {/* Avatar with live status dot */}
-                    <div className="relative shrink-0">
-                      <div className="w-11 h-11 rounded-xl bg-gradient-to-tr from-chatx-accent to-purple-600 flex items-center justify-center font-bold text-white text-sm overflow-hidden shadow-sm">
-                        {conv.avatarUrl ? (
-                          <img src={conv.avatarUrl} alt={conv.name} className="w-full h-full object-cover" />
-                        ) : conv.type === 'GROUP' ? (
-                          <Users className="w-5 h-5" />
-                        ) : (
-                          conv.name.charAt(0).toUpperCase()
-                        )}
-                      </div>
-                      {conv.type === 'DIRECT' && isOnline && (
-                        <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-500 border-2 border-chatx-bg ring-1 ring-emerald-400" />
-                      )}
-                    </div>
-
-                    {/* Details */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between mb-0.5">
-                        <span className="font-semibold text-xs text-white truncate">{conv.name}</span>
-                        {conv.lastMessageAt && (
-                          <span className="text-[10px] text-chatx-text-secondary shrink-0">
-                            {format(new Date(conv.lastMessageAt), 'HH:mm')}
-                          </span>
-                        )}
-                      </div>
-
-                      <div className="flex items-center justify-between gap-1">
-                        <p className="text-xs text-chatx-text-secondary truncate">
-                          {conv.lastMessageContent
-                            ? (conv.type === 'GROUP' && conv.lastMessageSenderUsername
-                                ? `@${conv.lastMessageSenderUsername}: `
-                                : '') + conv.lastMessageContent
-                            : conv.type === 'GROUP'
-                            ? `${conv.memberCount} members`
-                            : 'No messages yet'}
-                        </p>
-                        {conv.unreadCount > 0 && (
-                          <span className="px-1.5 py-0.5 rounded-full bg-chatx-accent text-white text-[10px] font-bold shrink-0">
-                            {conv.unreadCount}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })
+            {currentUser?.avatarUrl ? (
+              <img src={currentUser.avatarUrl} alt={currentUser.username} className="w-full h-full object-cover" />
             ) : (
-              <div className="py-16 text-center px-4">
-                <MessageSquare className="w-8 h-8 text-chatx-text-secondary/40 mx-auto mb-2" />
-                <p className="text-xs font-semibold text-white">No conversations yet</p>
-                <p className="text-[11px] text-chatx-text-secondary mt-1">
-                  Start a conversation from Friends, Search (Ctrl+K), or create a New Group.
-                </p>
-              </div>
+              currentUser?.username.charAt(0).toUpperCase()
             )}
           </div>
-        </aside>
 
-        {/* Right Pane: Active Chat Window */}
-        <main className={`flex-1 flex flex-col bg-chatx-bg ${!selectedConv ? 'hidden sm:flex' : 'flex'}`}>
-          {selectedConv ? (
-            <>
-              {/* Active Conversation Header */}
-              <div className="p-3.5 px-6 border-b border-chatx-border bg-chatx-surface/60 flex items-center justify-between shrink-0">
-                <div className="flex items-center gap-3.5 min-w-0">
+          {/* Header Action Icons */}
+          <div className="flex items-center gap-1 text-wa-text-secondary">
+            {/* Status icon */}
+            <button
+              className="wa-icon-btn p-2 rounded-full"
+              title="Status"
+            >
+              <CircleDashed className="w-5 h-5 text-wa-text-secondary hover:text-wa-text" />
+            </button>
+
+            {/* New Chat icon */}
+            <button
+              onClick={() => setIsNewChatDrawerOpen(true)}
+              className="wa-icon-btn p-2 rounded-full"
+              title="New chat"
+            >
+              <MessageSquarePlus className="w-5 h-5 text-wa-text-secondary hover:text-wa-text" />
+            </button>
+
+            {/* Notifications Dropdown */}
+            <NotificationDropdown />
+
+            {/* Admin Shield (if user is admin) */}
+            {(currentUser?.role === 'ADMIN' || currentUser?.role === 'SUPER_ADMIN') && (
+              <Link
+                to="/admin"
+                className="p-2 rounded-full hover:bg-wa-hover text-amber-400 transition-colors"
+                title="Admin Moderation Portal"
+              >
+                <Shield className="w-5 h-5" />
+              </Link>
+            )}
+
+            {/* 3-dots Menu dropdown */}
+            <div className="relative">
+              <button
+                onClick={() => setIsMenuOpen(!isMenuOpen)}
+                className="wa-icon-btn p-2 rounded-full"
+                title="Menu"
+              >
+                <MoreVertical className="w-5 h-5 text-wa-text-secondary hover:text-wa-text" />
+              </button>
+
+              {isMenuOpen && (
+                <div
+                  className="absolute right-0 top-full mt-1 w-48 bg-wa-panel border border-wa-border rounded-xl shadow-2xl py-1.5 z-50 text-sm animate-in fade-in zoom-in-95 duration-100"
+                  onClick={() => setIsMenuOpen(false)}
+                >
                   <button
-                    onClick={() => {
-                      setSelectedConv(null);
-                      navigate('/chat');
-                    }}
-                    className="sm:hidden p-1.5 rounded-lg bg-chatx-card text-chatx-text-secondary hover:text-white"
+                    onClick={() => setIsGroupModalOpen(true)}
+                    className="w-full text-left px-4 py-2 hover:bg-wa-hover text-wa-text transition-colors"
                   >
-                    <ArrowLeft className="w-4 h-4" />
+                    New group
                   </button>
+                  <button
+                    onClick={() => setIsProfileDrawerOpen(true)}
+                    className="w-full text-left px-4 py-2 hover:bg-wa-hover text-wa-text transition-colors"
+                  >
+                    Profile
+                  </button>
+                  <Link
+                    to="/friends"
+                    className="block w-full text-left px-4 py-2 hover:bg-wa-hover text-wa-text transition-colors"
+                  >
+                    Contacts & Friends
+                  </Link>
+                  <div className="my-1 border-t border-wa-border/50" />
+                  <button
+                    onClick={logout}
+                    className="w-full text-left px-4 py-2 hover:bg-wa-hover text-red-400 transition-colors"
+                  >
+                    Log out
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </header>
 
+        {/* Search Bar & Unread Filter */}
+        <div className="px-3 py-2 bg-wa-bg flex items-center gap-2 border-b border-wa-border/50 shrink-0">
+          <div className="bg-wa-panel rounded-lg px-3 py-1.5 flex items-center gap-4 flex-1">
+            <Search className="w-4 h-4 text-wa-text-secondary shrink-0" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search or start new chat"
+              className="w-full bg-transparent text-sm text-wa-text placeholder-wa-text-secondary outline-none"
+            />
+          </div>
+          <button
+            onClick={() => setFilterUnreadOnly(!filterUnreadOnly)}
+            className={`p-2 rounded-full transition-colors ${
+              filterUnreadOnly
+                ? 'bg-wa-green text-wa-bg'
+                : 'hover:bg-wa-hover text-wa-text-secondary hover:text-wa-text'
+            }`}
+            title="Filter unread chats"
+          >
+            <Filter className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Chat List Scroll View */}
+        <div className="flex-1 overflow-y-auto divide-y divide-wa-border/30 custom-scrollbar">
+          {isLoadingChats ? (
+            <div className="py-20 flex flex-col items-center justify-center gap-2">
+              <Loader2 className="w-6 h-6 text-wa-green animate-spin" />
+              <span className="text-xs text-wa-text-secondary">Loading chats...</span>
+            </div>
+          ) : filteredConversations.length > 0 ? (
+            filteredConversations.map((conv) => {
+              const isSelected = selectedConv?.id === conv.id;
+              const isOnline =
+                conv.type === 'DIRECT' &&
+                conv.directParticipant &&
+                onlineUsers[conv.directParticipant.id];
+
+              return (
+                <div
+                  key={conv.id}
+                  onClick={() => handleSelectConversation(conv)}
+                  className={`h-[72px] px-3.5 flex items-center gap-3.5 cursor-pointer transition-colors ${
+                    isSelected ? 'bg-wa-active' : 'hover:bg-wa-hover'
+                  }`}
+                >
+                  {/* Avatar */}
                   <div className="relative shrink-0">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-chatx-accent to-purple-600 flex items-center justify-center font-bold text-white text-sm overflow-hidden shadow">
-                      {selectedConv.avatarUrl ? (
-                        <img src={selectedConv.avatarUrl} alt={selectedConv.name} className="w-full h-full object-cover" />
-                      ) : selectedConv.type === 'GROUP' ? (
-                        <Users className="w-5 h-5" />
+                    <div className="w-12 h-12 rounded-full bg-wa-panel border border-wa-border/60 flex items-center justify-center font-bold text-wa-green text-base overflow-hidden">
+                      {conv.avatarUrl ? (
+                        <img src={conv.avatarUrl} alt={conv.name} className="w-full h-full object-cover" />
+                      ) : conv.type === 'GROUP' ? (
+                        <Users className="w-6 h-6 text-wa-text-secondary" />
                       ) : (
-                        selectedConv.name.charAt(0).toUpperCase()
+                        conv.name.charAt(0).toUpperCase()
                       )}
                     </div>
-                    {isPartnerOnline && (
-                      <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-500 border-2 border-chatx-bg ring-1 ring-emerald-400" />
+                    {conv.type === 'DIRECT' && isOnline && (
+                      <span className="absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full bg-wa-green border-2 border-wa-bg" />
                     )}
                   </div>
 
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-bold text-sm text-white truncate">{selectedConv.name}</h3>
-                      {selectedConv.type === 'GROUP' ? (
-                        <span className="px-2 py-0.5 rounded text-[10px] bg-chatx-accent/10 border border-chatx-accent/30 text-chatx-accent font-semibold">
-                          Group ({selectedConv.memberCount})
-                        </span>
-                      ) : (
-                        <span className="text-[11px] text-chatx-accent font-mono">
-                          @{selectedConv.directParticipant?.username}
+                  {/* Chat Info */}
+                  <div className="flex-1 min-w-0 border-b border-wa-border/20 py-2.5 h-full flex flex-col justify-center">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-normal text-base text-wa-text truncate">{conv.name}</span>
+                      {conv.lastMessageAt && (
+                        <span
+                          className={`text-xs shrink-0 ${
+                            conv.unreadCount > 0 ? 'text-wa-green font-medium' : 'text-wa-text-secondary'
+                          }`}
+                        >
+                          {format(new Date(conv.lastMessageAt), 'HH:mm')}
                         </span>
                       )}
                     </div>
-                    <div className="text-[11px] text-chatx-text-secondary truncate mt-0.5 flex items-center gap-1.5">
-                      {isPartnerOnline ? (
-                        <span className="text-emerald-400 font-medium">Online</span>
-                      ) : (
-                        <span>
-                          {selectedConv.description ||
-                            (selectedConv.type === 'DIRECT' ? 'Direct private session' : 'Group communication')}
+
+                    <div className="flex items-center justify-between gap-1">
+                      <div className="flex items-center gap-1 text-sm text-wa-text-secondary truncate">
+                        {conv.lastMessageSenderUsername === currentUser?.username && (
+                          <CheckCheck className="w-4 h-4 text-wa-check-blue shrink-0 inline" />
+                        )}
+                        <span className="truncate">
+                          {conv.lastMessageContent
+                            ? (conv.type === 'GROUP' && conv.lastMessageSenderUsername
+                                ? `${conv.lastMessageSenderUsername}: `
+                                : '') + conv.lastMessageContent
+                            : conv.type === 'GROUP'
+                            ? `${conv.memberCount} participants`
+                            : 'No messages yet'}
+                        </span>
+                      </div>
+                      {conv.unreadCount > 0 && (
+                        <span className="min-w-[20px] h-5 rounded-full bg-wa-green text-wa-bg text-xs font-bold px-1.5 flex items-center justify-center shrink-0">
+                          {conv.unreadCount}
                         </span>
                       )}
                     </div>
                   </div>
                 </div>
+              );
+            })
+          ) : (
+            <div className="py-20 text-center px-6">
+              <MessageSquare className="w-10 h-10 text-wa-text-secondary/30 mx-auto mb-3" />
+              <p className="text-sm font-medium text-wa-text">No chats found</p>
+              <p className="text-xs text-wa-text-secondary mt-1">
+                Click the message icon above to start chatting with your contacts.
+              </p>
+            </div>
+          )}
+        </div>
 
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() =>
-                      setReportModalData({
-                        isOpen: true,
-                        targetType: selectedConv.type === 'DIRECT' ? 'USER' : 'CONVERSATION',
-                        targetId:
-                          selectedConv.type === 'DIRECT' && selectedConv.directParticipant
-                            ? selectedConv.directParticipant.id
-                            : selectedConv.id,
-                        targetLabel:
-                          selectedConv.type === 'DIRECT'
-                            ? `@${selectedConv.directParticipant?.username || selectedConv.name}`
-                            : selectedConv.name,
-                      })
-                    }
-                    className="p-2 rounded-lg bg-chatx-card hover:bg-chatx-hover border border-chatx-border text-chatx-text-secondary hover:text-amber-400 transition-colors"
-                    title={selectedConv.type === 'DIRECT' ? 'Report user' : 'Report conversation'}
-                  >
-                    <Flag className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => setShowMemberDetails(!showMemberDetails)}
-                    className="p-2 rounded-lg bg-chatx-card hover:bg-chatx-hover border border-chatx-border text-chatx-text-secondary hover:text-white transition-colors"
-                    title="View conversation details & members"
-                  >
-                    <MoreVertical className="w-4 h-4" />
-                  </button>
+        {/* Slide-over Profile Drawer */}
+        <ProfileDrawer
+          isOpen={isProfileDrawerOpen}
+          onClose={() => setIsProfileDrawerOpen(false)}
+        />
+
+        {/* Slide-over New Chat Drawer */}
+        <NewChatDrawer
+          isOpen={isNewChatDrawerOpen}
+          onClose={() => setIsNewChatDrawerOpen(false)}
+          onOpenNewGroup={() => setIsGroupModalOpen(true)}
+          onConversationSelected={(conv) => {
+            setConversations([conv, ...conversations.filter((c) => c.id !== conv.id)]);
+            navigate(`/chat/${conv.id}`);
+          }}
+        />
+      </aside>
+
+      {/* ======================================================== */}
+      {/* RIGHT PANEL: Active Chat Stream or Welcome Screen        */}
+      {/* ======================================================== */}
+      <main className={`flex-1 flex flex-col bg-wa-bg-chat relative overflow-hidden ${!selectedConv ? 'hidden sm:flex' : 'flex'}`}>
+        {selectedConv ? (
+          <>
+            {/* Active Conversation Header (WhatsApp 60px) */}
+            <header className="h-[60px] bg-wa-header px-4 flex items-center justify-between border-b border-wa-border shrink-0 z-20">
+              <div
+                onClick={() => setIsInfoDrawerOpen(true)}
+                className="flex items-center gap-3.5 min-w-0 cursor-pointer flex-1"
+              >
+                {/* Mobile Back Button */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedConv(null);
+                    navigate('/chat');
+                  }}
+                  className="sm:hidden p-1 rounded-full hover:bg-wa-hover text-wa-text-secondary"
+                >
+                  <ArrowLeft className="w-5 h-5" />
+                </button>
+
+                {/* Avatar */}
+                <div className="relative shrink-0">
+                  <div className="w-10 h-10 rounded-full bg-wa-panel border border-wa-border flex items-center justify-center font-bold text-wa-green text-sm overflow-hidden">
+                    {selectedConv.avatarUrl ? (
+                      <img src={selectedConv.avatarUrl} alt={selectedConv.name} className="w-full h-full object-cover" />
+                    ) : selectedConv.type === 'GROUP' ? (
+                      <Users className="w-5 h-5 text-wa-text-secondary" />
+                    ) : (
+                      selectedConv.name.charAt(0).toUpperCase()
+                    )}
+                  </div>
+                  {isPartnerOnline && (
+                    <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-wa-green border-2 border-wa-bg" />
+                  )}
+                </div>
+
+                {/* Name & Status */}
+                <div className="min-w-0">
+                  <h3 className="font-normal text-base text-wa-text truncate leading-snug">
+                    {selectedConv.name}
+                  </h3>
+                  <p className="text-xs truncate text-wa-text-secondary leading-tight">
+                    {typingUser ? (
+                      <span className="text-wa-green font-medium animate-pulse">{typingUser} is typing...</span>
+                    ) : isPartnerOnline ? (
+                      <span className="text-wa-green font-medium">online</span>
+                    ) : selectedConv.type === 'GROUP' ? (
+                      selectedConv.members?.map((m) => m.displayName || m.username).join(', ')
+                    ) : (
+                      'click here for contact info'
+                    )}
+                  </p>
                 </div>
               </div>
 
-              {/* Chat View Area (Messages & Members) */}
-              <div className="flex-1 flex overflow-hidden relative">
+              {/* Right Header Action Icons */}
+              <div className="flex items-center gap-2 text-wa-text-secondary">
+                <button
+                  onClick={() => setIsInfoDrawerOpen(true)}
+                  className="wa-icon-btn p-2 rounded-full"
+                  title="Search in chat"
+                >
+                  <Search className="w-5 h-5 text-wa-text-secondary hover:text-wa-text" />
+                </button>
+                <button
+                  onClick={() =>
+                    setReportModalData({
+                      isOpen: true,
+                      targetType: selectedConv.type === 'DIRECT' ? 'USER' : 'CONVERSATION',
+                      targetId:
+                        selectedConv.type === 'DIRECT' && selectedConv.directParticipant
+                          ? selectedConv.directParticipant.id
+                          : selectedConv.id,
+                      targetLabel:
+                        selectedConv.type === 'DIRECT'
+                          ? `@${selectedConv.directParticipant?.username || selectedConv.name}`
+                          : selectedConv.name,
+                    })
+                  }
+                  className="wa-icon-btn p-2 rounded-full"
+                  title="Report"
+                >
+                  <Flag className="w-4 h-4 text-wa-text-secondary hover:text-amber-400" />
+                </button>
+                <button
+                  onClick={() => setIsInfoDrawerOpen(true)}
+                  className="wa-icon-btn p-2 rounded-full"
+                  title="Contact info"
+                >
+                  <MoreVertical className="w-5 h-5 text-wa-text-secondary hover:text-wa-text" />
+                </button>
+              </div>
+            </header>
+
+            {/* Message Stream Area with WhatsApp Doodle Wallpaper */}
+            <div className="flex-1 flex overflow-hidden relative">
+              <div className="flex-1 flex flex-col justify-between overflow-hidden bg-wa-doodle bg-repeat relative">
+                {/* Overlay to dim wallpaper */}
+                <div className="absolute inset-0 bg-wa-bg-chat/90 pointer-events-none" />
+
                 {/* Messages Feed */}
-                <div className="flex-1 flex flex-col justify-between overflow-hidden">
-                  <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
-                    {isLoadingMessages ? (
-                      <div className="py-20 flex flex-col items-center justify-center gap-2">
-                        <Loader2 className="w-6 h-6 text-chatx-accent animate-spin" />
-                        <span className="text-xs text-chatx-text-secondary">Loading messages...</span>
-                      </div>
-                    ) : messages.length === 0 ? (
-                      <div className="my-auto text-center max-w-sm mx-auto p-6 rounded-2xl glass-panel">
-                        <div className="w-12 h-12 rounded-2xl bg-chatx-accent/10 border border-chatx-accent/20 flex items-center justify-center text-chatx-accent mx-auto mb-3">
-                          <Sparkles className="w-6 h-6" />
-                        </div>
-                        <h4 className="font-bold text-white text-sm mb-1">{selectedConv.name}</h4>
-                        <p className="text-xs text-chatx-text-secondary leading-relaxed">
-                          {selectedConv.type === 'DIRECT'
-                            ? `This is the start of your direct conversation with @${selectedConv.directParticipant?.username}.`
-                            : `Welcome to ${selectedConv.name}! Say hi to get things started.`}
-                        </p>
-                      </div>
-                    ) : (
-                      messages.map((msg) => {
-                        const isOwn = msg.senderId === currentUser?.id;
-                        const isDeleted = msg.isDeleted;
+                <div className="flex-1 overflow-y-auto p-4 sm:px-12 space-y-2 z-10 custom-scrollbar">
+                  {/* End-to-End Encryption Yellow Banner */}
+                  <div className="my-3 mx-auto max-w-lg p-2 px-3 rounded-lg bg-[#182229] border border-[#ffd279]/15 shadow-sm text-center flex items-center justify-center gap-2">
+                    <Lock className="w-3.5 h-3.5 text-[#ffd279] shrink-0" />
+                    <span className="text-[11px] text-[#ffd279] font-normal leading-tight">
+                      Messages are end-to-end encrypted. No one outside of this chat can read them.
+                    </span>
+                  </div>
 
-                        return (
-                          <div
-                            key={msg.id}
-                            className={`group relative flex flex-col ${isOwn ? 'items-end' : 'items-start'}`}
-                          >
-                            {/* Group sender name for incoming messages */}
-                            {!isOwn && selectedConv.type === 'GROUP' && (
-                              <span className="text-[10px] text-chatx-accent font-semibold mb-1 ml-1">
-                                {msg.senderDisplayName || msg.senderUsername}
+                  {isLoadingMessages ? (
+                    <div className="py-20 flex flex-col items-center justify-center gap-2">
+                      <Loader2 className="w-6 h-6 text-wa-green animate-spin" />
+                      <span className="text-xs text-wa-text-secondary">Loading messages...</span>
+                    </div>
+                  ) : messages.length === 0 ? (
+                    <div className="my-auto text-center max-w-sm mx-auto p-6 rounded-2xl bg-wa-panel/80 border border-wa-border/40 shadow-lg">
+                      <div className="w-12 h-12 rounded-full bg-wa-green/10 border border-wa-green/20 flex items-center justify-center text-wa-green mx-auto mb-3">
+                        <Lock className="w-6 h-6" />
+                      </div>
+                      <h4 className="font-semibold text-wa-text text-sm mb-1">{selectedConv.name}</h4>
+                      <p className="text-xs text-wa-text-secondary leading-relaxed">
+                        {selectedConv.type === 'DIRECT'
+                          ? `Send a message to start chatting with @${selectedConv.directParticipant?.username}.`
+                          : `Welcome to ${selectedConv.name}! Send a message to get things started.`}
+                      </p>
+                    </div>
+                  ) : (
+                    messages.map((msg, index) => {
+                      const isOwn = msg.senderId === currentUser?.id;
+                      const isDeleted = msg.isDeleted;
+
+                      // Date separator check
+                      const showDateHeader =
+                        index === 0 ||
+                        format(new Date(messages[index - 1].createdAt), 'yyyy-MM-dd') !==
+                          format(new Date(msg.createdAt), 'yyyy-MM-dd');
+
+                      return (
+                        <React.Fragment key={msg.id}>
+                          {showDateHeader && (
+                            <div className="flex justify-center my-3">
+                              <span className="bg-[#182229] text-wa-text-secondary text-[11px] font-medium uppercase px-3 py-1 rounded-md shadow-sm">
+                                {format(new Date(msg.createdAt), 'MMMM d, yyyy')}
                               </span>
-                            )}
+                            </div>
+                          )}
 
-                            {/* Main Bubble Wrapper */}
-                            <div className="relative max-w-[85%] sm:max-w-[70%]">
-                              {/* Reply context pill */}
-                              {msg.replyTo && (
-                                <div className="mb-1 text-[11px] p-2 rounded-lg bg-black/30 border-l-2 border-chatx-accent text-chatx-text-secondary truncate">
-                                  <span className="font-bold text-chatx-accent mr-1">
-                                    @{msg.replyTo.senderUsername}:
-                                  </span>
-                                  <span>{msg.replyTo.content}</span>
+                          <div
+                            className={`group relative flex flex-col mb-1 ${
+                              isOwn ? 'items-end' : 'items-start'
+                            }`}
+                          >
+                            {/* WhatsApp Speech Bubble */}
+                            <div
+                              className={`relative max-w-[85%] sm:max-w-[65%] px-3 py-1.5 shadow-sm text-sm rounded-lg ${
+                                isOwn
+                                  ? 'bg-wa-bubble-out rounded-tr-none wa-tail-out'
+                                  : 'bg-wa-bubble-in rounded-tl-none wa-tail-in'
+                              }`}
+                            >
+                              {/* Sender name for group chats */}
+                              {!isOwn && selectedConv.type === 'GROUP' && (
+                                <div className="text-xs font-semibold text-wa-green mb-0.5">
+                                  {msg.senderDisplayName || msg.senderUsername}
                                 </div>
                               )}
 
-                              {/* Message Content Container */}
-                              <div
-                                className={`px-4 py-2.5 rounded-2xl text-xs sm:text-sm leading-relaxed shadow-sm transition-all ${
-                                  isOwn
-                                    ? isDeleted
-                                      ? 'bg-chatx-surface/80 border border-chatx-border/60 text-chatx-text-secondary italic'
-                                      : 'bg-chatx-accent text-white rounded-br-none'
-                                    : isDeleted
-                                    ? 'bg-chatx-surface/60 border border-chatx-border/40 text-chatx-text-secondary italic'
-                                    : 'bg-chatx-surface border border-chatx-border text-white rounded-bl-none'
-                                }`}
-                              >
-                                {/* Media / File Attachments */}
-                                {!isDeleted && msg.attachments && msg.attachments.length > 0 && (
-                                  <div className="space-y-2 mb-2">
-                                    {msg.attachments.map((att, idx) => {
-                                      const isImg = att.fileType?.startsWith('image/') || /\.(jpg|jpeg|png|gif|webp)$/i.test(att.fileName);
-                                      const fullUrl = att.fileUrl.startsWith('http') ? att.fileUrl : `http://localhost:8080${att.fileUrl}`;
-                                      return isImg ? (
-                                        <div key={idx} className="rounded-xl overflow-hidden max-w-xs cursor-pointer border border-white/10" onClick={() => window.open(fullUrl, '_blank')}>
-                                          <img src={fullUrl} alt={att.fileName} className="w-full h-auto max-h-60 object-cover hover:opacity-90 transition-opacity" />
-                                        </div>
-                                      ) : (
-                                        <a
-                                          key={idx}
-                                          href={fullUrl}
-                                          target="_blank"
-                                          rel="noreferrer"
-                                          download={att.fileName}
-                                          className={`flex items-center gap-2 p-2 rounded-xl text-xs transition-colors ${
-                                            isOwn ? 'bg-black/20 hover:bg-black/30 text-white' : 'bg-chatx-card hover:bg-chatx-card/80 text-chatx-text'
-                                          }`}
-                                        >
-                                          <FileText className="w-4 h-4 shrink-0 text-chatx-accent" />
-                                          <div className="flex-1 min-w-0">
-                                            <p className="font-medium truncate">{att.fileName}</p>
-                                            {att.fileSize && (
-                                              <p className="text-[10px] opacity-70">
-                                                {(att.fileSize / 1024).toFixed(1)} KB
-                                              </p>
-                                            )}
-                                          </div>
-                                          <Download className="w-3.5 h-3.5 shrink-0 opacity-70" />
-                                        </a>
-                                      );
-                                    })}
-                                  </div>
-                                )}
-
-                                <p className="whitespace-pre-wrap break-words">{msg.content}</p>
-
-                                {/* Meta: time, edited badge, receipt status */}
-                                <div
-                                  className={`mt-1 flex items-center gap-1.5 justify-end text-[10px] ${
-                                    isOwn ? 'text-white/70' : 'text-chatx-text-secondary'
-                                  }`}
-                                >
-                                  {msg.isEdited && !isDeleted && <span>(edited)</span>}
-                                  <span>{msg.createdAt ? format(new Date(msg.createdAt), 'HH:mm') : ''}</span>
-                                  {isOwn && !isDeleted && (
-                                    <span>
-                                      {msg.deliveryStatus === 'READ' ? (
-                                        <CheckCheck className="w-3.5 h-3.5 text-blue-300 inline" />
-                                      ) : (
-                                        <Check className="w-3.5 h-3.5 inline" />
-                                      )}
-                                    </span>
-                                  )}
+                              {/* Replying quote preview */}
+                              {msg.replyTo && (
+                                <div className="mb-1 p-2 rounded bg-black/25 border-l-4 border-wa-green text-xs text-wa-text-secondary truncate">
+                                  <span className="font-semibold text-wa-green mr-1">
+                                    @{msg.replyTo.senderUsername}
+                                  </span>
+                                  <p className="truncate text-wa-text">{msg.replyTo.content}</p>
                                 </div>
+                              )}
+
+                              {/* File & Image attachments */}
+                              {!isDeleted && msg.attachments && msg.attachments.length > 0 && (
+                                <div className="space-y-1 mb-1">
+                                  {msg.attachments.map((att, idx) => {
+                                    const isImg =
+                                      att.fileType?.startsWith('image/') ||
+                                      /\.(jpg|jpeg|png|gif|webp)$/i.test(att.fileName);
+                                    const fullUrl = att.fileUrl.startsWith('http')
+                                      ? att.fileUrl
+                                      : `http://localhost:8088${att.fileUrl}`;
+
+                                    return isImg ? (
+                                      <div
+                                        key={idx}
+                                        onClick={() => window.open(fullUrl, '_blank')}
+                                        className="rounded-lg overflow-hidden max-w-sm cursor-pointer border border-white/5 my-1"
+                                      >
+                                        <img
+                                          src={fullUrl}
+                                          alt={att.fileName}
+                                          className="w-full h-auto max-h-72 object-cover hover:opacity-95 transition-opacity"
+                                        />
+                                      </div>
+                                    ) : (
+                                      <a
+                                        key={idx}
+                                        href={fullUrl}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        download={att.fileName}
+                                        className="flex items-center gap-2.5 p-2 rounded-lg bg-black/20 hover:bg-black/30 text-wa-text text-xs transition-colors my-1"
+                                      >
+                                        <FileText className="w-5 h-5 text-wa-green shrink-0" />
+                                        <div className="flex-1 min-w-0">
+                                          <p className="font-medium truncate">{att.fileName}</p>
+                                          {att.fileSize && (
+                                            <p className="text-[10px] text-wa-text-secondary">
+                                              {(att.fileSize / 1024).toFixed(1)} KB
+                                            </p>
+                                          )}
+                                        </div>
+                                        <Download className="w-4 h-4 text-wa-text-secondary shrink-0" />
+                                      </a>
+                                    );
+                                  })}
+                                </div>
+                              )}
+
+                              {/* Message text */}
+                              <div className="whitespace-pre-wrap break-words text-wa-text text-[14.2px] leading-relaxed inline">
+                                {isDeleted ? (
+                                  <span className="text-wa-text-secondary italic flex items-center gap-1">
+                                    <Trash2 className="w-3.5 h-3.5 inline" />
+                                    This message was deleted
+                                  </span>
+                                ) : (
+                                  msg.content
+                                )}
                               </div>
 
-                              {/* Reactions Pills */}
+                              {/* Time & Delivery Status Check */}
+                              <span className="float-right ml-3 mt-1.5 inline-flex items-center gap-1 text-[11px] text-wa-text-secondary">
+                                {msg.isEdited && !isDeleted && <span className="text-[10px]">(edited)</span>}
+                                <span>{msg.createdAt ? format(new Date(msg.createdAt), 'HH:mm') : ''}</span>
+                                {isOwn && !isDeleted && (
+                                  <span>
+                                    {msg.deliveryStatus === 'READ' ? (
+                                      <CheckCheck className="w-4 h-4 text-wa-check-blue inline" />
+                                    ) : (
+                                      <Check className="w-4 h-4 text-wa-text-secondary inline" />
+                                    )}
+                                  </span>
+                                )}
+                              </span>
+
+                              {/* Reactions Floating Badge */}
                               {msg.reactions && msg.reactions.length > 0 && (
-                                <div className="flex flex-wrap gap-1 mt-1">
+                                <div className="absolute -bottom-2.5 right-2 flex items-center gap-0.5 bg-wa-panel border border-wa-border px-1.5 py-0.5 rounded-full shadow-md z-10">
                                   {msg.reactions.map((r) => (
                                     <button
                                       key={r.emoji}
                                       onClick={() => handleToggleReaction(msg.id, r.emoji)}
-                                      className={`text-[11px] px-2 py-0.5 rounded-full border flex items-center gap-1 transition-all ${
-                                        r.hasReacted
-                                          ? 'bg-chatx-accent/20 border-chatx-accent text-chatx-accent font-semibold'
-                                          : 'bg-chatx-surface border-chatx-border text-chatx-text-secondary hover:text-white'
-                                      }`}
+                                      className="text-xs hover:scale-125 transition-transform"
                                       title={r.usernames.join(', ')}
                                     >
                                       <span>{r.emoji}</span>
-                                      <span>{r.count}</span>
+                                      {r.count > 1 && (
+                                        <span className="text-[10px] text-wa-text-secondary ml-0.5 font-bold">
+                                          {r.count}
+                                        </span>
+                                      )}
                                     </button>
                                   ))}
                                 </div>
                               )}
 
-                              {/* Hover Floating Actions Menu */}
+                              {/* WhatsApp Message Hover Menu Button */}
                               {!isDeleted && (
                                 <div
-                                  className={`absolute top-0 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 bg-chatx-surface/95 border border-chatx-border shadow-lg rounded-xl px-1.5 py-1 z-10 ${
-                                    isOwn ? 'right-0' : 'left-0'
+                                  className={`absolute top-1 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 bg-wa-panel/95 border border-wa-border shadow-lg rounded-lg p-1 z-20 ${
+                                    isOwn ? '-left-24' : '-right-24'
                                   }`}
                                 >
-                                  {/* Quick reaction trigger */}
+                                  {/* Quick reaction */}
                                   <button
                                     onClick={() =>
                                       setActiveReactionMessageId(
                                         activeReactionMessageId === msg.id ? null : msg.id
                                       )
                                     }
-                                    className="p-1 rounded hover:bg-chatx-card text-chatx-text-secondary hover:text-white transition-colors"
+                                    className="p-1 hover:bg-wa-hover rounded text-wa-text-secondary hover:text-wa-text"
                                     title="React"
                                   >
                                     <Smile className="w-3.5 h-3.5" />
                                   </button>
 
-                                  {/* Reply button */}
+                                  {/* Reply */}
                                   <button
                                     onClick={() => {
                                       setReplyingTo(msg);
                                       setEditingMessage(null);
                                     }}
-                                    className="p-1 rounded hover:bg-chatx-card text-chatx-text-secondary hover:text-white transition-colors"
+                                    className="p-1 hover:bg-wa-hover rounded text-wa-text-secondary hover:text-wa-text"
                                     title="Reply"
                                   >
                                     <Reply className="w-3.5 h-3.5" />
                                   </button>
 
-                                  {/* Edit button (own message only) */}
+                                  {/* Edit (own only) */}
                                   {isOwn && (
                                     <button
                                       onClick={() => {
@@ -835,46 +961,30 @@ export const ChatPage: React.FC = () => {
                                         setEditInput(msg.content);
                                         setReplyingTo(null);
                                       }}
-                                      className="p-1 rounded hover:bg-chatx-card text-chatx-text-secondary hover:text-white transition-colors"
+                                      className="p-1 hover:bg-wa-hover rounded text-wa-text-secondary hover:text-wa-text"
                                       title="Edit"
                                     >
                                       <Pencil className="w-3.5 h-3.5" />
                                     </button>
                                   )}
 
-                                  {/* Delete button (own or admin) */}
+                                  {/* Delete (own only) */}
                                   {isOwn && (
                                     <button
                                       onClick={() => handleDeleteMessage(msg)}
-                                      className="p-1 rounded hover:bg-chatx-danger/20 text-chatx-text-secondary hover:text-chatx-danger transition-colors"
+                                      className="p-1 hover:bg-wa-hover rounded text-wa-text-secondary hover:text-red-400"
                                       title="Delete"
                                     >
                                       <Trash2 className="w-3.5 h-3.5" />
                                     </button>
                                   )}
-
-                                  {/* Report message button */}
-                                  <button
-                                    onClick={() =>
-                                      setReportModalData({
-                                        isOpen: true,
-                                        targetType: 'MESSAGE',
-                                        targetId: msg.id,
-                                        targetLabel: `Message by @${msg.senderUsername}`,
-                                      })
-                                    }
-                                    className="p-1 rounded hover:bg-chatx-card text-chatx-text-secondary hover:text-amber-400 transition-colors"
-                                    title="Report message"
-                                  >
-                                    <Flag className="w-3.5 h-3.5" />
-                                  </button>
                                 </div>
                               )}
 
                               {/* Emoji Picker Popup */}
                               {activeReactionMessageId === msg.id && (
                                 <div
-                                  className={`absolute bottom-full mb-1 flex items-center gap-1 p-1.5 rounded-xl bg-chatx-card border border-chatx-border shadow-xl z-20 ${
+                                  className={`absolute bottom-full mb-2 flex items-center gap-1.5 p-1.5 rounded-full bg-wa-panel border border-wa-border shadow-2xl z-30 ${
                                     isOwn ? 'right-0' : 'left-0'
                                   }`}
                                 >
@@ -882,14 +992,14 @@ export const ChatPage: React.FC = () => {
                                     <button
                                       key={emoji}
                                       onClick={() => handleToggleReaction(msg.id, emoji)}
-                                      className="p-1.5 hover:bg-chatx-surface rounded-lg text-sm transition-transform hover:scale-125"
+                                      className="p-1.5 hover:bg-wa-hover rounded-full text-base hover:scale-130 transition-transform"
                                     >
                                       {emoji}
                                     </button>
                                   ))}
                                   <button
                                     onClick={() => setActiveReactionMessageId(null)}
-                                    className="p-1 text-chatx-text-secondary hover:text-white"
+                                    className="p-1 text-wa-text-secondary hover:text-wa-text"
                                   >
                                     <X className="w-3.5 h-3.5" />
                                   </button>
@@ -897,239 +1007,238 @@ export const ChatPage: React.FC = () => {
                               )}
                             </div>
                           </div>
-                        );
-                      })
-                    )}
+                        </React.Fragment>
+                      );
+                    })
+                  )}
 
-                    {/* Live Typing Indicator Bubble */}
-                    {typingUser && (
-                      <div className="flex items-center gap-2 p-2 px-3 rounded-2xl bg-chatx-surface border border-chatx-border w-max animate-in fade-in duration-200">
-                        <span className="text-xs text-chatx-text-secondary italic">
-                          @{typingUser} is typing
+                  {/* Live Typing Indicator */}
+                  {typingUser && (
+                    <div className="flex items-center gap-2 p-2 px-3 rounded-lg bg-wa-bubble-in border border-wa-border/40 w-max shadow-sm">
+                      <span className="text-xs text-wa-text-secondary italic">
+                        {typingUser} is typing
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-wa-green animate-bounce [animation-delay:-0.3s]" />
+                        <span className="w-1.5 h-1.5 rounded-full bg-wa-green animate-bounce [animation-delay:-0.15s]" />
+                        <span className="w-1.5 h-1.5 rounded-full bg-wa-green animate-bounce" />
+                      </span>
+                    </div>
+                  )}
+
+                  <div ref={messagesEndRef} />
+                </div>
+
+                {/* Input Bar Footer (WhatsApp Web 62px) */}
+                <div className="bg-wa-header px-4 py-2 border-t border-wa-border shrink-0 z-20">
+                  {/* Quoted reply banner */}
+                  {replyingTo && (
+                    <div className="mb-2 p-2 px-3 rounded-lg bg-wa-panel border-l-4 border-wa-green flex items-center justify-between text-xs">
+                      <div className="truncate">
+                        <span className="font-semibold text-wa-green">
+                          @{replyingTo.senderUsername}:{' '}
                         </span>
-                        <span className="flex items-center gap-1">
-                          <span className="w-1.5 h-1.5 rounded-full bg-chatx-accent animate-bounce [animation-delay:-0.3s]" />
-                          <span className="w-1.5 h-1.5 rounded-full bg-chatx-accent animate-bounce [animation-delay:-0.15s]" />
-                          <span className="w-1.5 h-1.5 rounded-full bg-chatx-accent animate-bounce" />
-                        </span>
+                        <span className="text-wa-text-secondary">{replyingTo.content}</span>
                       </div>
-                    )}
+                      <button
+                        onClick={() => setReplyingTo(null)}
+                        className="text-wa-text-secondary hover:text-wa-text p-1"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  )}
 
-                    <div ref={messagesEndRef} />
-                  </div>
-
-                  {/* Input Footer */}
-                  <div className="p-3 sm:p-4 border-t border-chatx-border bg-chatx-surface/40 shrink-0">
-                    {/* Replying banner */}
-                    {replyingTo && (
-                      <div className="mb-2 p-2 px-3 rounded-lg bg-chatx-card border border-chatx-border flex items-center justify-between gap-2 text-xs">
-                        <div className="flex items-center gap-2 truncate">
-                          <Reply className="w-3.5 h-3.5 text-chatx-accent shrink-0" />
-                          <span className="text-chatx-text-secondary truncate">
-                            Replying to <span className="font-semibold text-white">@{replyingTo.senderUsername}</span>:{' '}
-                            {replyingTo.content}
+                  {/* Pending attachment banner */}
+                  {pendingAttachment && (
+                    <div className="mb-2 p-2 px-3 rounded-lg bg-wa-panel border border-wa-border flex items-center justify-between text-xs">
+                      <div className="flex items-center gap-2 truncate">
+                        <Paperclip className="w-4 h-4 text-wa-green shrink-0" />
+                        <span className="text-wa-text font-medium truncate">{pendingAttachment.fileName}</span>
+                        {pendingAttachment.fileSize && (
+                          <span className="text-[10px] text-wa-text-secondary">
+                            ({(pendingAttachment.fileSize / 1024).toFixed(1)} KB)
                           </span>
-                        </div>
-                        <button
-                          onClick={() => setReplyingTo(null)}
-                          className="text-chatx-text-secondary hover:text-white p-1"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                        </button>
+                        )}
                       </div>
-                    )}
+                      <button
+                        onClick={() => setPendingAttachment(null)}
+                        className="text-wa-text-secondary hover:text-wa-text p-1"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  )}
 
-                    {/* Editing banner */}
-                    {editingMessage && (
-                      <div className="mb-2 p-2 px-3 rounded-lg bg-chatx-accent/10 border border-chatx-accent/30 flex items-center justify-between gap-2 text-xs">
-                        <div className="flex items-center gap-2 truncate">
-                          <Pencil className="w-3.5 h-3.5 text-chatx-accent shrink-0" />
-                          <span className="text-white font-semibold">Editing message</span>
-                        </div>
-                        <button
-                          onClick={() => {
-                            setEditingMessage(null);
-                            setEditInput('');
-                          }}
-                          className="text-chatx-text-secondary hover:text-white p-1"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    )}
+                  {editingMessage ? (
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={editInput}
+                        onChange={(e) => setEditInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleSaveEdit();
+                          if (e.key === 'Escape') setEditingMessage(null);
+                        }}
+                        className="flex-1 bg-wa-input text-wa-text text-sm rounded-lg px-4 py-2.5 outline-none border border-wa-green"
+                        autoFocus
+                      />
+                      <button
+                        onClick={handleSaveEdit}
+                        disabled={!editInput.trim()}
+                        className="px-4 py-2 rounded-lg bg-wa-green text-wa-bg font-semibold text-xs"
+                      >
+                        Save
+                      </button>
+                    </div>
+                  ) : (
+                    <form onSubmit={handleSendMessage} className="flex items-center gap-2">
+                      {/* Hidden file input */}
+                      <input
+                        type="file"
+                        ref={fileInputRef}
+                        onChange={handleFileSelected}
+                        className="hidden"
+                        accept="image/*,video/mp4,audio/*,application/pdf,application/zip"
+                      />
 
-                    {/* Attachment preview banner */}
-                    {pendingAttachment && (
-                      <div className="mb-2 p-2 px-3 rounded-lg bg-chatx-card border border-chatx-border flex items-center justify-between gap-2 text-xs">
-                        <div className="flex items-center gap-2 truncate">
-                          <Paperclip className="w-3.5 h-3.5 text-chatx-accent shrink-0" />
-                          <span className="text-white font-medium truncate">{pendingAttachment.fileName}</span>
-                          {pendingAttachment.fileSize && (
-                            <span className="text-[10px] text-chatx-text-secondary">
-                              ({(pendingAttachment.fileSize / 1024).toFixed(1)} KB)
-                            </span>
-                          )}
-                        </div>
-                        <button
-                          onClick={() => setPendingAttachment(null)}
-                          className="text-chatx-text-secondary hover:text-white p-1"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    )}
+                      {/* Emoji Icon */}
+                      <button
+                        type="button"
+                        className="wa-icon-btn p-2 rounded-full"
+                        title="Emoji"
+                      >
+                        <Smile className="w-6 h-6 text-wa-text-secondary hover:text-wa-text" />
+                      </button>
 
-                    {editingMessage ? (
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="text"
-                          value={editInput}
-                          onChange={(e) => setEditInput(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') handleSaveEdit();
-                            if (e.key === 'Escape') setEditingMessage(null);
-                          }}
-                          className="input-field text-xs py-2.5"
-                          autoFocus
-                        />
-                        <button
-                          onClick={handleSaveEdit}
-                          disabled={!editInput.trim()}
-                          className="btn-primary py-2.5 px-4 text-xs shrink-0"
-                        >
-                          Save
-                        </button>
-                      </div>
-                    ) : (
-                      <form onSubmit={handleSendMessage} className="flex items-center gap-2 sm:gap-3">
-                        <input
-                          type="file"
-                          ref={fileInputRef}
-                          onChange={handleFileSelected}
-                          className="hidden"
-                          accept="image/*,video/mp4,audio/*,application/pdf,application/zip"
-                        />
+                      {/* Attachment Icon & Popup Menu */}
+                      <div className="relative">
                         <button
                           type="button"
-                          onClick={() => fileInputRef.current?.click()}
+                          onClick={() => setIsAttachmentMenuOpen(!isAttachmentMenuOpen)}
                           disabled={isUploadingFile || isSending}
-                          className="p-2.5 rounded-xl bg-chatx-card hover:bg-chatx-hover border border-chatx-border text-chatx-text-secondary hover:text-white transition-colors shrink-0"
-                          title="Attach file or image"
+                          className="wa-icon-btn p-2 rounded-full"
+                          title="Attach"
                         >
                           {isUploadingFile ? (
-                            <Loader2 className="w-4 h-4 animate-spin text-chatx-accent" />
+                            <Loader2 className="w-6 h-6 text-wa-green animate-spin" />
                           ) : (
-                            <Paperclip className="w-4 h-4" />
+                            <Paperclip className="w-6 h-6 text-wa-text-secondary hover:text-wa-text" />
                           )}
                         </button>
+
+                        {/* WhatsApp Attachment Menu Popup */}
+                        {isAttachmentMenuOpen && (
+                          <div className="absolute bottom-full mb-3 left-0 bg-wa-panel border border-wa-border rounded-2xl shadow-2xl p-3 flex flex-col gap-2.5 z-40 w-44 animate-in fade-in zoom-in-95 duration-100">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setIsAttachmentMenuOpen(false);
+                                fileInputRef.current?.click();
+                              }}
+                              className="flex items-center gap-3 p-2 rounded-xl hover:bg-wa-hover text-wa-text text-xs transition-colors"
+                            >
+                              <div className="w-8 h-8 rounded-full bg-purple-600 flex items-center justify-center text-white">
+                                <ImageIcon className="w-4 h-4" />
+                              </div>
+                              <span className="font-medium">Photos & videos</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setIsAttachmentMenuOpen(false);
+                                fileInputRef.current?.click();
+                              }}
+                              className="flex items-center gap-3 p-2 rounded-xl hover:bg-wa-hover text-wa-text text-xs transition-colors"
+                            >
+                              <div className="w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center text-white">
+                                <FileText className="w-4 h-4" />
+                              </div>
+                              <span className="font-medium">Document</span>
+                            </button>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* WhatsApp Pill Text Input */}
+                      <div className="flex-1 bg-wa-input rounded-lg px-4 py-2.5 flex items-center">
                         <input
                           type="text"
                           value={messageInput}
                           onChange={handleInputChange}
-                          placeholder={`Message ${selectedConv.name}...`}
-                          className="input-field text-xs py-2.5"
+                          placeholder="Type a message"
                           disabled={isSending}
+                          className="w-full bg-transparent text-wa-text placeholder-wa-text-secondary text-sm outline-none"
                         />
+                      </div>
+
+                      {/* Send or Mic Button */}
+                      {messageInput.trim() || pendingAttachment ? (
                         <button
                           type="submit"
-                          disabled={(!messageInput.trim() && !pendingAttachment) || isSending}
-                          className="btn-primary py-2.5 px-4 flex items-center justify-center gap-1.5 shrink-0"
+                          disabled={isSending}
+                          className="p-2.5 rounded-full text-wa-green hover:text-emerald-400 transition-colors"
+                          title="Send message"
                         >
                           {isSending ? (
-                            <Loader2 className="w-4 h-4 animate-spin" />
+                            <Loader2 className="w-6 h-6 animate-spin" />
                           ) : (
-                            <>
-                              <Send className="w-4 h-4" />
-                              <span className="text-xs hidden sm:inline">Send</span>
-                            </>
+                            <Send className="w-6 h-6" />
                           )}
                         </button>
-                      </form>
-                    )}
-                  </div>
+                      ) : (
+                        <button
+                          type="button"
+                          className="p-2.5 rounded-full text-wa-text-secondary hover:text-wa-text transition-colors"
+                          title="Voice message"
+                        >
+                          <Mic className="w-6 h-6" />
+                        </button>
+                      )}
+                    </form>
+                  )}
                 </div>
-
-                {/* Member Drawer (Sidebar when toggled) */}
-                {showMemberDetails && (
-                  <div className="w-72 border-l border-chatx-border bg-chatx-surface/90 backdrop-blur-md p-4 flex flex-col shrink-0 overflow-y-auto animate-in slide-in-from-right duration-200">
-                    <div className="flex items-center justify-between pb-3 border-b border-chatx-border mb-4">
-                      <h4 className="font-bold text-xs uppercase tracking-wider text-white">Participants</h4>
-                      <button
-                        onClick={() => setShowMemberDetails(false)}
-                        className="text-chatx-text-secondary hover:text-white"
-                      >
-                        <ArrowLeft className="w-4 h-4" />
-                      </button>
-                    </div>
-
-                    <div className="space-y-3">
-                      {selectedConv.members?.map((member) => {
-                        const isMemberOnline = onlineUsers[member.userId];
-                        return (
-                          <div
-                            key={member.userId}
-                            className="flex items-center justify-between gap-2 p-2 rounded-lg bg-chatx-card/60"
-                          >
-                            <div className="flex items-center gap-2.5 min-w-0">
-                              <div className="relative shrink-0">
-                                <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-chatx-accent to-purple-600 flex items-center justify-center font-bold text-white text-xs overflow-hidden">
-                                  {member.avatarUrl ? (
-                                    <img src={member.avatarUrl} alt={member.username} className="w-full h-full object-cover" />
-                                  ) : (
-                                    member.displayName?.charAt(0).toUpperCase() || member.username.charAt(0).toUpperCase()
-                                  )}
-                                </div>
-                                {isMemberOnline && (
-                                  <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500 border border-chatx-bg" />
-                                )}
-                              </div>
-                              <div className="min-w-0">
-                                <div className="font-semibold text-xs text-white truncate">
-                                  {member.displayName || member.username}
-                                </div>
-                                <div className="text-[10px] text-chatx-accent font-mono truncate">
-                                  @{member.username}
-                                </div>
-                              </div>
-                            </div>
-
-                            {member.role === 'ADMIN' && (
-                              <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-chatx-accent/15 text-chatx-accent border border-chatx-accent/30 shrink-0">
-                                ADMIN
-                              </span>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-
-                    <div className="mt-auto pt-6 border-t border-chatx-border/60 text-[11px] text-chatx-text-secondary space-y-1">
-                      <div className="flex items-center gap-1.5">
-                        <Calendar className="w-3.5 h-3.5" />
-                        <span>
-                          Created {selectedConv.createdAt ? format(new Date(selectedConv.createdAt), 'PP') : 'recently'}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                )}
               </div>
-            </>
-          ) : (
-            <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
-              <div className="w-16 h-16 rounded-2xl bg-chatx-accent/10 border border-chatx-accent/20 flex items-center justify-center text-chatx-accent mb-4">
-                <MessageSquare className="w-8 h-8" />
-              </div>
-              <h3 className="text-lg font-bold text-white">Select a Conversation</h3>
-              <p className="text-xs text-chatx-text-secondary max-w-sm mt-1">
-                Choose a conversation from the left sidebar or start a new group to begin messaging.
-              </p>
+
+              {/* Sliding Contact/Group Info Drawer on Right */}
+              <ConversationInfoDrawer
+                isOpen={isInfoDrawerOpen}
+                onClose={() => setIsInfoDrawerOpen(false)}
+                conversation={selectedConv}
+                currentUser={currentUser}
+                onReport={(targetType, targetId, targetLabel) =>
+                  setReportModalData({
+                    isOpen: true,
+                    targetType,
+                    targetId,
+                    targetLabel,
+                  })
+                }
+                onConversationUpdated={fetchConversations}
+              />
             </div>
-          )}
-        </main>
-      </div>
+          </>
+        ) : (
+          /* WhatsApp Signature Welcome Screen */
+          <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-[#222e35] select-none border-b-6 border-wa-green">
+            <div className="w-64 h-64 mb-8 flex items-center justify-center text-wa-text-secondary/40">
+              <Laptop className="w-52 h-52 stroke-[1.2]" />
+            </div>
+            <h2 className="text-3xl font-light text-wa-text mb-3">ChatX Web</h2>
+            <p className="text-sm text-wa-text-secondary max-w-md leading-relaxed mb-8">
+              Send and receive messages without keeping your phone online.
+              <br />
+              Use ChatX on up to 4 linked devices and 1 phone simultaneously.
+            </p>
+            <div className="flex items-center gap-2 text-xs text-wa-text-secondary/70">
+              <Lock className="w-3.5 h-3.5" />
+              <span>End-to-end encrypted</span>
+            </div>
+          </div>
+        )}
+      </main>
 
-      {/* Create Group Modal */}
+      {/* Modals */}
       <CreateGroupModal
         isOpen={isGroupModalOpen}
         onClose={() => setIsGroupModalOpen(false)}
@@ -1140,7 +1249,6 @@ export const ChatPage: React.FC = () => {
         }}
       />
 
-      {/* Report Modal */}
       {reportModalData && (
         <ReportModal
           isOpen={reportModalData.isOpen}

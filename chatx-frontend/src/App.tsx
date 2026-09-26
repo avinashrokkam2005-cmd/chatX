@@ -35,6 +35,14 @@ function App() {
             path="/"
             element={
               <ProtectedRoute>
+                <ChatPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/home"
+            element={
+              <ProtectedRoute>
                 <HomePage />
               </ProtectedRoute>
             }

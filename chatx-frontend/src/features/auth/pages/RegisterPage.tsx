@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../context/AuthContext';
-import { MessageSquare, Lock, User, Mail, AtSign, Eye, EyeOff, AlertCircle, Loader2 } from 'lucide-react';
+import { MessageSquare, Lock, User, Mail, AtSign, Eye, EyeOff, AlertCircle, Loader2, ShieldCheck } from 'lucide-react';
 
 export const RegisterPage: React.FC = () => {
   const [username, setUsername] = useState('');
@@ -51,11 +51,12 @@ export const RegisterPage: React.FC = () => {
     try {
       setIsSubmitting(true);
       await register(cleanUsername, cleanEmail, password, displayName);
-      navigate('/');
+      navigate('/chat');
     } catch (err: any) {
-      const message = err.response?.data?.message ||
-                      err.response?.data?.errors?.[0] ||
-                      'Registration failed. Please check the provided information.';
+      const message =
+        err.response?.data?.message ||
+        err.response?.data?.errors?.[0] ||
+        'Registration failed. Please check the provided information.';
       setErrorMessage(message);
     } finally {
       setIsSubmitting(false);
@@ -63,169 +64,184 @@ export const RegisterPage: React.FC = () => {
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen px-4 py-8 bg-chatx-bg">
-      <div className="w-full max-w-md">
-        {/* Logo & Header */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-chatx-surface border border-chatx-border shadow-lg shadow-chatx-accent/5 mb-4">
-            <MessageSquare className="w-7 h-7 text-chatx-accent" />
+    <div className="min-h-screen bg-[#111b21] flex flex-col font-sans select-none relative">
+      {/* Top Emerald Header Strip (signature WhatsApp Web banner) */}
+      <div className="h-[222px] bg-wa-green w-full absolute top-0 left-0 z-0">
+        <div className="max-w-5xl mx-auto px-6 pt-7 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center text-white shadow-sm">
+            <MessageSquare className="w-6 h-6 fill-white" />
           </div>
-          <h1 className="text-3xl font-bold tracking-tight text-chatx-text">Create account</h1>
-          <p className="text-chatx-text-secondary mt-2 text-sm">
-            Join ChatX to connect and message in real time
-          </p>
+          <span className="text-white font-medium text-sm tracking-widest uppercase">ChatX Web</span>
         </div>
+      </div>
 
-        {/* Form Card */}
-        <div className="glass-panel p-8 shadow-xl">
-          {errorMessage && (
-            <div className="mb-6 p-4 rounded-lg bg-chatx-danger/10 border border-chatx-danger/20 flex items-start gap-3 text-chatx-danger text-sm animate-in fade-in duration-200">
-              <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
-              <span>{errorMessage}</span>
-            </div>
-          )}
+      {/* Main Elevated Container */}
+      <div className="flex-1 flex items-center justify-center px-4 py-12 z-10">
+        <div className="w-full max-w-4xl bg-wa-panel border border-wa-border/70 rounded-2xl shadow-2xl p-8 sm:p-12 flex flex-col md:flex-row gap-10 mt-12">
+          {/* Left Column: Instructions */}
+          <div className="flex-1 space-y-6">
+            <h1 className="text-2xl sm:text-3xl font-light text-wa-text leading-tight">
+              Create your ChatX account
+            </h1>
+            <p className="text-sm text-wa-text-secondary leading-relaxed">
+              Join ChatX to message friends and groups in real time with authentic WhatsApp Web speed and privacy.
+            </p>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Username */}
-            <div>
-              <label className="block text-xs font-semibold text-chatx-text-secondary uppercase tracking-wider mb-1.5">
-                Username
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-chatx-text-secondary">
-                  <AtSign className="w-4 h-4" />
-                </div>
-                <input
-                  type="text"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/\s+/g, ''))}
-                  placeholder="avinash123"
-                  className="input-field pl-10 text-sm"
-                  autoComplete="username"
-                  required
-                />
+            <div className="space-y-3 pt-2 text-sm text-wa-text-secondary">
+              <div className="flex items-center gap-3">
+                <span className="w-2 h-2 rounded-full bg-wa-green shrink-0" />
+                <span>Choose a unique handle for direct messaging</span>
               </div>
-              <p className="text-[11px] text-chatx-text-secondary mt-1">
-                Your permanent searchable handle (e.g. @avinash123)
-              </p>
-            </div>
-
-            {/* Email */}
-            <div>
-              <label className="block text-xs font-semibold text-chatx-text-secondary uppercase tracking-wider mb-1.5">
-                Email Address
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-chatx-text-secondary">
-                  <Mail className="w-4 h-4" />
-                </div>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="avinash@example.com"
-                  className="input-field pl-10 text-sm"
-                  autoComplete="email"
-                  required
-                />
+              <div className="flex items-center gap-3">
+                <span className="w-2 h-2 rounded-full bg-wa-green shrink-0" />
+                <span>Instant group chats with up to 256 participants</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="w-2 h-2 rounded-full bg-wa-green shrink-0" />
+                <span>Rich file attachments, emoji reactions, and read receipts</span>
               </div>
             </div>
 
-            {/* Display Name (Optional) */}
-            <div>
-              <label className="block text-xs font-semibold text-chatx-text-secondary uppercase tracking-wider mb-1.5">
-                Display Name <span className="text-chatx-text-secondary/60 lowercase font-normal">(optional)</span>
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-chatx-text-secondary">
-                  <User className="w-4 h-4" />
-                </div>
-                <input
-                  type="text"
-                  value={displayName}
-                  onChange={(e) => setDisplayName(e.target.value)}
-                  placeholder="Avinash Sharma"
-                  className="input-field pl-10 text-sm"
-                  autoComplete="name"
-                />
-              </div>
+            <div className="pt-6 border-t border-wa-border/40 flex items-center gap-3 text-xs text-wa-text-secondary">
+              <ShieldCheck className="w-4 h-4 text-wa-green shrink-0" />
+              <span>Full end-to-end WebSocket encryption included.</span>
             </div>
+          </div>
 
-            {/* Password */}
-            <div>
-              <label className="block text-xs font-semibold text-chatx-text-secondary uppercase tracking-wider mb-1.5">
-                Password
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-chatx-text-secondary">
-                  <Lock className="w-4 h-4" />
-                </div>
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="At least 8 characters"
-                  className="input-field pl-10 pr-10 text-sm"
-                  autoComplete="new-password"
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-chatx-text-secondary hover:text-chatx-text transition-colors"
-                >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
+          {/* Right Column: Registration Form */}
+          <div className="w-full md:w-88 flex flex-col justify-center">
+            {errorMessage && (
+              <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/20 flex items-start gap-2.5 text-red-400 text-xs animate-in fade-in duration-200">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                <span>{errorMessage}</span>
               </div>
-            </div>
+            )}
 
-            {/* Confirm Password */}
-            <div>
-              <label className="block text-xs font-semibold text-chatx-text-secondary uppercase tracking-wider mb-1.5">
-                Confirm Password
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-chatx-text-secondary">
-                  <Lock className="w-4 h-4" />
+            <form onSubmit={handleSubmit} className="space-y-3.5">
+              {/* Username */}
+              <div>
+                <label className="block text-xs font-medium text-wa-green uppercase tracking-wider mb-1">
+                  Username *
+                </label>
+                <div className="relative">
+                  <AtSign className="w-4 h-4 text-wa-text-secondary absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/\s+/g, ''))}
+                    placeholder="avinash123"
+                    className="w-full bg-wa-input border border-wa-border rounded-lg pl-9 pr-3 py-2 text-sm text-wa-text placeholder-wa-text-secondary focus:border-wa-green focus:outline-none"
+                    autoComplete="username"
+                    required
+                  />
                 </div>
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="Repeat your password"
-                  className="input-field pl-10 text-sm"
-                  autoComplete="new-password"
-                  required
-                />
               </div>
+
+              {/* Email */}
+              <div>
+                <label className="block text-xs font-medium text-wa-green uppercase tracking-wider mb-1">
+                  Email Address *
+                </label>
+                <div className="relative">
+                  <Mail className="w-4 h-4 text-wa-text-secondary absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="avinash@example.com"
+                    className="w-full bg-wa-input border border-wa-border rounded-lg pl-9 pr-3 py-2 text-sm text-wa-text placeholder-wa-text-secondary focus:border-wa-green focus:outline-none"
+                    autoComplete="email"
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Display Name */}
+              <div>
+                <label className="block text-xs font-medium text-wa-text-secondary uppercase tracking-wider mb-1">
+                  Display Name <span className="lowercase font-normal opacity-70">(optional)</span>
+                </label>
+                <div className="relative">
+                  <User className="w-4 h-4 text-wa-text-secondary absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={displayName}
+                    onChange={(e) => setDisplayName(e.target.value)}
+                    placeholder="Avinash Sharma"
+                    className="w-full bg-wa-input border border-wa-border rounded-lg pl-9 pr-3 py-2 text-sm text-wa-text placeholder-wa-text-secondary focus:border-wa-green focus:outline-none"
+                    autoComplete="name"
+                  />
+                </div>
+              </div>
+
+              {/* Password */}
+              <div>
+                <label className="block text-xs font-medium text-wa-green uppercase tracking-wider mb-1">
+                  Password *
+                </label>
+                <div className="relative">
+                  <Lock className="w-4 h-4 text-wa-text-secondary absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="At least 8 characters"
+                    className="w-full bg-wa-input border border-wa-border rounded-lg pl-9 pr-10 py-2 text-sm text-wa-text placeholder-wa-text-secondary focus:border-wa-green focus:outline-none"
+                    autoComplete="new-password"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-wa-text-secondary hover:text-wa-text transition-colors"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Confirm Password */}
+              <div>
+                <label className="block text-xs font-medium text-wa-green uppercase tracking-wider mb-1">
+                  Confirm Password *
+                </label>
+                <div className="relative">
+                  <Lock className="w-4 h-4 text-wa-text-secondary absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="Confirm password"
+                    className="w-full bg-wa-input border border-wa-border rounded-lg pl-9 pr-3 py-2 text-sm text-wa-text placeholder-wa-text-secondary focus:border-wa-green focus:outline-none"
+                    autoComplete="new-password"
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Submit Button */}
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="w-full py-2.5 px-4 rounded-lg bg-wa-green hover:bg-emerald-600 text-wa-bg font-semibold text-sm transition-colors flex items-center justify-center gap-2 mt-4 shadow-md shadow-wa-green/10 disabled:opacity-50"
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Creating account...</span>
+                  </>
+                ) : (
+                  <span>Create account</span>
+                )}
+              </button>
+            </form>
+
+            <div className="mt-5 text-center text-xs text-wa-text-secondary">
+              Already have an account?{' '}
+              <Link to="/login" className="text-wa-green hover:underline font-medium">
+                Sign in
+              </Link>
             </div>
-
-            {/* Submit Button */}
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="btn-primary w-full flex items-center justify-center gap-2 pt-3 pb-3 mt-4 shadow-lg shadow-chatx-accent/20"
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  <span>Creating account...</span>
-                </>
-              ) : (
-                <span>Register account</span>
-              )}
-            </button>
-          </form>
-
-          {/* Footer link */}
-          <div className="mt-6 text-center text-sm text-chatx-text-secondary">
-            Already have an account?{' '}
-            <Link
-              to="/login"
-              className="text-chatx-accent hover:text-chatx-accent-hover font-semibold transition-colors"
-            >
-              Sign in
-            </Link>
           </div>
         </div>
       </div>
