@@ -393,8 +393,8 @@ This runs all 4 application tiers in isolated Docker containers with automated h
 
 #### Step 1: Clone and Enter the Directory
 ```bash
-git clone https://github.com/your-username/ChatX.git
-cd ChatX
+git clone https://github.com/avinashrokkam2005-cmd/chatX.git
+cd chatX
 ```
 
 #### Step 2: (Optional) Configure Environment Variables
