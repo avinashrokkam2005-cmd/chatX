@@ -1,7 +1,7 @@
 spring:
   # DataSource
   datasource:
-    url: jdbc:mysql://${CHATX_DB_HOST:localhost}:${CHATX_DB_PORT:3306}/${CHATX_DB_NAME:chatx_db}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC&characterEncoding=utf8mb4
+    url: jdbc:mysql://${CHATX_DB_HOST:localhost}:${CHATX_DB_PORT:3306}/${CHATX_DB_NAME:chatx_db}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC&characterEncoding=UTF-8
     username: ${CHATX_DB_USERNAME:chatx_user}
     password: ${CHATX_DB_PASSWORD:chatx_pass}
     driver-class-name: com.mysql.cj.jdbc.Driver
@@ -40,3 +40,6 @@ springdoc:
   swagger-ui:
     enabled: true
     path: /swagger-ui.html
+
+server:
+  port: ${CHATX_SERVER_PORT:8088}

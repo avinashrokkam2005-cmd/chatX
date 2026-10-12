@@ -20,6 +20,8 @@ import {
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
 
+import { UserSearchModal } from '../../users/components/UserSearchModal';
+
 type Tab = 'friends' | 'received' | 'sent' | 'blocked';
 
 export const FriendsPage: React.FC = () => {
@@ -30,6 +32,7 @@ export const FriendsPage: React.FC = () => {
   const [sentRequests, setSentRequests] = useState<FriendRequestDto[]>([]);
   const [blockedUsers, setBlockedUsers] = useState<BlockDto[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
 
   const fetchAllData = async () => {
     try {
@@ -137,6 +140,14 @@ export const FriendsPage: React.FC = () => {
               </p>
             </div>
           </div>
+
+          <button
+            onClick={() => setIsSearchOpen(true)}
+            className="btn-primary text-xs py-2 px-3.5 flex items-center gap-2"
+          >
+            <UserPlus className="w-4 h-4" />
+            <span>Add Friend</span>
+          </button>
         </div>
       </div>
 
@@ -433,6 +444,15 @@ export const FriendsPage: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* User Search & Add Friend Modal */}
+      <UserSearchModal
+        isOpen={isSearchOpen}
+        onClose={() => {
+          setIsSearchOpen(false);
+          fetchAllData();
+        }}
+      />
     </div>
   );
 };

@@ -34,13 +34,21 @@ ChatX is a high-performance, modular monolithic social communication platform en
 - [4. Database Design & Schema Highlights](#4-database-design--schema-highlights)
 - [5. Real-Time STOMP Protocol Reference](#5-real-time-stomp-protocol-reference)
 - [6. REST API Reference](#6-rest-api-reference)
-- [7. Getting Started](#7-getting-started)
-  - [Prerequisites](#prerequisites)
-  - [Option A: One-Command Full Stack (Docker Compose)](#option-a-one-command-full-stack-docker-compose)
-  - [Option B: Local Development](#option-b-local-development)
+- [7. Getting Started & Installation](#7-getting-started--installation)
+  - [Prerequisites & System Matrix](#prerequisites--system-matrix)
+  - [Mode 1: One-Command Full Stack (Docker Compose)](#mode-1-one-command-full-stack-docker-compose)
+  - [Mode 2: Backend Standalone Installation & Running](#mode-2-backend-standalone-installation--running)
+    - [Option 2A: Standalone with MySQL 8.0 & Redis 7.0](#option-2a-standalone-with-mysql-80--redis-70)
+    - [Option 2B: Zero-Dependency Rapid Dev (Embedded H2)](#option-2b-zero-dependency-rapid-dev-embedded-h2)
+  - [Mode 3: Frontend Standalone Installation & Running](#mode-3-frontend-standalone-installation--running)
+  - [Mode 4: Combined Local Development (Side-by-Side)](#mode-4-combined-local-development-side-by-side)
+  - [Default Seeded Credentials & Verification](#default-seeded-credentials--verification)
+  - [Development Port & Communication Map](#development-port--communication-map)
+  - [Troubleshooting & Common Issues](#troubleshooting--common-issues)
 - [8. Environment Variables Reference](#8-environment-variables-reference)
 - [9. Testing & Quality Assurance](#9-testing--quality-assurance)
 - [10. Production Deployment Guidelines](#10-production-deployment-guidelines)
+- [11. Repository Structure](#11-repository-structure)
 
 ---
 
@@ -346,78 +354,319 @@ All successful responses return HTTP 200/201 wrapped in the standard envelope:
 
 ---
 
-## 7. Getting Started
+## 7. Getting Started & Installation
 
-### Prerequisites
-- **Docker & Docker Compose** (Recommended)
-- *Or for manual setup*:
-  - Java JDK 21 or 25
-  - Apache Maven 3.9+
-  - Node.js 18+ and npm
-  - Local MySQL 8.0 and Redis 7.0 instances
+ChatX supports flexible development workflows depending on your preference and environment:
+
+| Mode | Best For | Prerequisites | Command to Launch |
+| :--- | :--- | :--- | :--- |
+| **Mode 1: One-Command Docker Full Stack** | Quick test, full production parity | Docker & Docker Compose | `docker compose up --build -d` |
+| **Mode 2A: Standalone Backend (MySQL + Redis)** | Full backend development | Java 21+, Maven 3.9+, MySQL, Redis | `cd chatx-backend && mvn spring-boot:run` |
+| **Mode 2B: Standalone Backend (Zero-Infra H2)** | Instant backend test with zero setup | Java 21+, Maven 3.9+ | `mvn spring-boot:run -Dspring-boot.run.profiles=local` |
+| **Mode 3: Standalone Frontend** | UI & React styling development | Node.js 18+, npm 9+ | `cd chatx-frontend && npm run dev` |
+| **Mode 4: Combined Side-by-Side Local Dev** | Active full-stack feature development | Java 21+, Maven, Node 18+, Docker | Run DB via Docker, run backend & frontend in terminals |
 
 ---
 
-### Option A: One-Command Full Stack (Docker Compose)
+### Prerequisites & System Matrix
 
-The easiest way to run the entire production-style environment:
+Ensure you have the following installed according to your preferred development mode:
 
+| Tool / Runtime | Required Version | Verification Command | Notes |
+| :--- | :--- | :--- | :--- |
+| **Java JDK** | 21 LTS or 25 LTS | `java -version` | Oracle JDK or Eclipse Temurin recommended |
+| **Apache Maven** | 3.9.0+ | `mvn -version` | Build tool for the Spring Boot backend |
+| **Node.js & npm** | Node 18+ (20+ LTS recommended), npm 9+ | `node -v` && `npm -v` | JavaScript runtime for Vite & React |
+| **Docker Desktop** | Compose v2.20+ | `docker compose version` | Required for containerized mode or local Redis/MySQL |
+| **MySQL** *(Optional if using Docker/H2)* | 8.0+ | `mysql --version` | Default local port `3306` |
+| **Redis** *(Optional if using Docker/H2)* | 7.0+ | `redis-cli --version` | Default local port `6379` |
+
+---
+
+### Mode 1: One-Command Full Stack (Docker Compose)
+
+This runs all 4 application tiers in isolated Docker containers with automated health checks and dependencies:
+1. `chatx-mysql` (MySQL 8.0 database)
+2. `chatx-redis` (Redis 7 in-memory cache & presence)
+3. `chatx-backend` (Spring Boot 3 REST & STOMP server)
+4. `chatx-frontend` (Nginx serving compiled React SPA and proxying traffic)
+
+#### Step 1: Clone and Enter the Directory
 ```bash
-# 1. Clone repository
 git clone https://github.com/your-username/ChatX.git
 cd ChatX
+```
 
-# 2. Build and run all containers (MySQL, Redis, Backend, Frontend)
+#### Step 2: (Optional) Configure Environment Variables
+Copy `.env.example` to `.env` to override defaults (a safe default secret is preconfigured):
+```bash
+# On Linux / macOS
+cp .env.example .env
+
+# On Windows PowerShell
+Copy-Item .env.example .env
+```
+
+#### Step 3: Build and Start All Services
+```bash
 docker compose up --build -d
 ```
 
-#### Access Points:
-- **ChatX Web Application**: [http://localhost](http://localhost) (Port 80)
-- **Backend API**: [http://localhost:8080/api](http://localhost:8080/api)
-- **Swagger UI API Explorer**: [http://localhost:8080/swagger-ui.html](http://localhost:8080/swagger-ui.html)
-
-To view logs:
+#### Step 4: Verify Container Health
 ```bash
-docker compose logs -f backend
+docker compose ps
 ```
+*All 4 services (`chatx-mysql`, `chatx-redis`, `chatx-backend`, `chatx-frontend`) should show status `Up` or `healthy`.*
 
-To shut down:
+#### Service URLs in Docker Mode:
+- **ChatX Web App**: [http://localhost](http://localhost) (Port 80)
+- **Backend API**: [http://localhost:8080/api](http://localhost:8080/api)
+- **Interactive Swagger UI**: [http://localhost:8080/swagger-ui.html](http://localhost:8080/swagger-ui.html)
+- **MySQL RDBMS**: `localhost:3306`
+- **Redis Cache**: `localhost:6379`
+
+#### Useful Docker Management Commands:
 ```bash
+# Stream backend logs
+docker compose logs -f backend
+
+# Stream frontend / Nginx proxy logs
+docker compose logs -f frontend
+
+# Stop all containers (preserves database volume data)
+docker compose stop
+
+# Destroy containers and clean up
 docker compose down
+
+# Destroy containers and delete persistent database & Redis volumes
+docker compose down -v
 ```
 
 ---
 
-### Option B: Local Development
+### Mode 2: Backend Standalone Installation & Running
 
-#### 1. Start MySQL & Redis Containers Only
+The backend is built with Spring Boot 3.3.4 and Java 21. It resides in the [`chatx-backend/`](file:///d:/ChatX/chatx-backend) directory.
+
+#### Step 2.1: Navigate to the Backend Directory
 ```bash
-docker compose up mysql redis -d
+cd ChatX/chatx-backend
 ```
 
-#### 2. Run Spring Boot Backend
-```bash
-cd chatx-backend
+#### Step 2.2: Choose Your Database Strategy
 
-# Verify all unit tests pass
+##### Option 2A: Standalone with MySQL 8.0 & Redis 7.0 (Recommended for Full Parity)
+1. **Quick-start MySQL & Redis using Docker**:
+   If you have Docker installed, you don't need to manually configure MySQL and Redis on your machine:
+   ```bash
+   # From the project root (ChatX/)
+   docker compose up mysql redis -d
+   ```
+2. **Or using native MySQL & Redis**:
+   If running native MySQL 8, log into your MySQL client and initialize the database and user:
+   ```sql
+   CREATE DATABASE chatx_db CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
+   CREATE USER 'chatx_user'@'%' IDENTIFIED BY 'chatx_pass';
+   GRANT ALL PRIVILEGES ON chatx_db.* TO 'chatx_user'@'%';
+   FLUSH PRIVILEGES;
+   ```
+   Start your local Redis service on default port `6379`.
+
+##### Option 2B: Zero-Dependency Rapid Dev (Embedded H2 Database)
+If you want to run the backend immediately **without installing MySQL, Docker, or Redis**:
+- ChatX includes a dedicated `local` profile.
+- It uses a persistent file-based H2 database (`./data/chatx_db`) configured in MySQL compatibility mode.
+- Redis health checks are safely disabled.
+
+#### Step 2.3: Build & Test Backend
+```bash
+# Compile and download dependencies
+mvn clean compile
+
+# Execute test suite (43 unit & integration tests)
 mvn test
-
-# Start the application with dev profile
-mvn spring-boot:run
 ```
-*The backend server will start on `http://localhost:8080`.*
 
-#### 3. Run React Frontend
+#### Step 2.4: Run the Backend Application
+
+- **To run with MySQL + Redis (dev profile)**:
+  ```bash
+  # Runs on port 8088 by default
+  mvn spring-boot:run
+  # Or explicitly:
+  mvn spring-boot:run -Dspring-boot.run.profiles=dev
+  ```
+
+- **To run with Embedded H2 (local profile, zero dependencies)**:
+  ```bash
+  mvn spring-boot:run -Dspring-boot.run.profiles=local
+  ```
+
+#### Step 2.5: Backend Verification
+Once started, you will see Spring Boot startup logs ending with `Started ChatXApplication in X seconds`.
+- **Backend API Base**: `http://localhost:8088/api`
+- **Swagger UI Interactive Docs**: [http://localhost:8088/swagger-ui.html](http://localhost:8088/swagger-ui.html)
+- **H2 Console** *(if running local profile)*: [http://localhost:8088/h2-console](http://localhost:8088/h2-console) (JDBC URL: `jdbc:h2:file:./data/chatx_db`, User: `sa`, Password: empty)
+
+---
+
+### Mode 3: Frontend Standalone Installation & Running
+
+The frontend is a modern React 18 single-page application built with Vite, TypeScript, and Tailwind CSS. It resides in the [`chatx-frontend/`](file:///d:/ChatX/chatx-frontend) directory.
+
+#### Step 3.1: Navigate to the Frontend Directory
 ```bash
-cd ../chatx-frontend
+cd ChatX/chatx-frontend
+```
 
-# Install dependencies
+#### Step 3.2: Install Dependencies
+```bash
 npm install
+```
 
-# Start Vite development server
+#### Step 3.3: Understand the Vite Proxy Architecture
+In local development, the Vite development server runs on `http://localhost:5173`.
+To prevent Cross-Origin Resource Sharing (CORS) hurdles and simplify WebSocket handling, Vite is preconfigured in `vite.config.ts` to automatically reverse proxy:
+- All `/api/*` REST HTTP requests ──► `http://localhost:8088/api/*`
+- All `/ws` STOMP WebSocket traffic ──► `http://localhost:8088/ws`
+
+*Note: If your backend is running on a custom port other than 8088 (e.g. 8080), simply update the target in `chatx-frontend/vite.config.ts`.*
+
+#### Step 3.4: Launch the Frontend Development Server
+```bash
 npm run dev
 ```
-*The frontend application will start on `http://localhost:5173`.*
+
+The terminal will display:
+```text
+  VITE v5.4.7  ready in 240 ms
+
+  ➜  Local:   http://localhost:5173/
+  ➜  Network: use --host to expose
+  ➜  press h + enter to show help
+```
+
+#### Step 3.5: Access the Web Application
+Open [http://localhost:5173](http://localhost:5173) in your browser.
+
+#### Additional Frontend Scripts:
+```bash
+# Typecheck with TypeScript and compile production bundle into dist/
+npm run build
+
+# Preview the compiled production build locally
+npm run preview
+
+# Run ESLint validation
+npm run lint
+```
+
+---
+
+### Mode 4: Combined Local Development (Side-by-Side)
+
+For active full-stack software development, running the frontend and backend in separate terminals allows you to leverage **Hot Module Replacement (HMR)** in React and **Spring Boot DevTools / fast recompilation** in Java simultaneously.
+
+#### Terminal 1: Infrastructure (Databases)
+```bash
+cd ChatX
+docker compose up mysql redis -d
+```
+*(Skip Terminal 1 if you use the H2 `local` backend profile).*
+
+#### Terminal 2: Backend (Spring Boot)
+```bash
+cd ChatX/chatx-backend
+mvn spring-boot:run
+```
+*Backend listens on `http://localhost:8088`.*
+
+#### Terminal 3: Frontend (Vite React SPA)
+```bash
+cd ChatX/chatx-frontend
+npm run dev
+```
+*Frontend listens on `http://localhost:5173` and proxies requests to backend.*
+
+---
+
+### Default Seeded Credentials & Verification
+
+On startup, ChatX automatically initializes a default Super Administrator account via [`DataInitializer`](file:///d:/ChatX/chatx-backend/src/main/java/com/chatx/common/config/DataInitializer.java):
+
+| Property | Value |
+| :--- | :--- |
+| **Username** | `admin` |
+| **Email** | `admin@chatx.com` |
+| **Password** | `Admin@1234` |
+| **Role** | `SUPER_ADMIN` |
+| **Admin Portal** | [http://localhost:5173/admin](http://localhost:5173/admin) *(or `http://localhost/admin` in Docker)* |
+
+#### Verifying End-to-End Real-Time Messaging:
+1. Open [http://localhost:5173](http://localhost:5173) in your primary browser. Log in with `admin` / `Admin@1234`.
+2. Open an **Incognito / Private Window** (or a second browser).
+3. Navigate to [http://localhost:5173/register](http://localhost:5173/register) and create a second account (e.g., username: `alice`, password: `Password@123`).
+4. In Alice's window, press `Ctrl+K` (or click search), search for `@admin`, and send a friend request.
+5. In Admin's window, observe the live in-app notification badge increment via STOMP WebSocket. Navigate to Friends -> Incoming Requests and click **Accept**.
+6. Switch back to Alice or Admin, click **Chat**, and start exchanging live messages, typing indicators, reactions, and file attachments!
+
+---
+
+### Development Port & Communication Map
+
+| Port | Service | Environment | Access / Role |
+| :--- | :--- | :--- | :--- |
+| `80` | Nginx Frontend Proxy | Docker Compose | Public Web Entrypoint (Proxies to SPA, `/api`, `/ws`) |
+| `5173` | Vite Dev Server | Local Dev | React SPA with Live HMR |
+| `8080` | Spring Boot API | Docker Container | REST endpoints & STOMP WebSocket in Docker |
+| `8088` | Spring Boot API | Local Dev (dev / local profile) | REST endpoints & STOMP WebSocket during local dev |
+| `3306` | MySQL 8.0 Server | Docker / Native | Relational database (InnoDB, utf8mb4) |
+| `6379` | Redis 7.0 Server | Docker / Native | User online presence & volatile pub/sub |
+
+---
+
+### Troubleshooting & Common Issues
+
+#### 1. Port Already in Use (e.g. 8088, 8080, 5173, 3306)
+- **Symptom**: `Web server failed to start. Port 8088 was already in use.`
+- **Solution (Windows PowerShell)**:
+  ```powershell
+  # Find PID occupying the port
+  netstat -ano | findstr :8088
+  # Terminate the process (replace <PID> with the number from rightmost column)
+  taskkill /PID <PID> /F
+  ```
+- **Solution (Linux / macOS)**:
+  ```bash
+  lsof -ti :8088 | xargs kill -9
+  ```
+
+#### 2. MySQL Connection Refused / Access Denied
+- **Symptom**: `Communications link failure` or `Access denied for user 'chatx_user'@'localhost'`.
+- **Solution**:
+  - Verify container status: `docker compose ps mysql`.
+  - Ensure the credentials in `.env` or `application-dev.yml` match (`chatx_user` / `chatx_pass`).
+  - Alternatively, switch immediately to the zero-dependency H2 profile: `mvn spring-boot:run -Dspring-boot.run.profiles=local`.
+
+#### 3. Redis Connection Refused
+- **Symptom**: `Unable to connect to Redis; nested exception is io.lettuce.core.RedisConnectionException`.
+- **Solution**:
+  - Start Redis via Docker: `docker compose up redis -d`.
+  - Or run the backend with `-Dspring-boot.run.profiles=local` which disables Redis health checks and relies on resilient in-memory presence fallbacks.
+
+#### 4. STOMP WebSocket Fails to Connect
+- **Symptom**: Console error `WebSocket connection to 'ws://localhost:5173/ws' failed`.
+- **Solution**:
+  - Verify that the Spring Boot backend is actively running on `http://localhost:8088`.
+  - Check `chatx-frontend/vite.config.ts` to ensure the proxy target matches your running backend port.
+  - Verify your JWT token hasn't expired (log out and log in again).
+
+#### 5. File Upload Size Exceeded
+- **Symptom**: HTTP 413 or `Maximum upload size exceeded`.
+- **Solution**:
+  - ChatX configures a default file size limit of 10MB (`spring.servlet.multipart.max-file-size=10MB`).
+  - To increase this limit, update `application.yml` and `nginx.conf` (`client_max_body_size`).
 
 ---
 
@@ -511,8 +760,69 @@ The backend `Dockerfile` is tuned for containerized Linux environments with:
 
 ---
 
+## 11. Repository Structure
+
+```text
+ChatX/
+├── .env.example                 # Environment variables template
+├── docker-compose.yml           # Production & multi-container orchestration
+├── README.md                    # Root project documentation & complete developer manual
+│
+├── chatx-backend/               # Spring Boot 3.3.4 Application (Java 21)
+│   ├── README.md                # Standalone backend documentation & guide
+│   ├── Dockerfile               # Multi-stage Eclipse Temurin JDK 21 build
+│   ├── pom.xml                  # Maven project dependencies & build configuration
+│   └── src/
+│       ├── main/
+│       │   ├── java/com/chatx/
+│       │   │   ├── admin/       # Platform analytics, user moderation, audit logging
+│       │   │   ├── auth/        # JWT stateless token provider, filters, security config
+│       │   │   ├── block/       # Unidirectional user block logic & friendship severance
+│       │   │   ├── common/      # Global exceptions, ApiResponse, BaseEntity, DataInitializer
+│       │   │   ├── conversation/# Direct & group chat rooms, participant management
+│       │   │   ├── file/        # Sanitized file upload & media streaming service
+│       │   │   ├── friendship/  # Canonical friend requests & friend pair relationships
+│       │   │   ├── message/     # Message engine, cursor pagination, reactions, edits
+│       │   │   ├── notification/# In-app alerts & real-time badge dispatch
+│       │   │   ├── realtime/    # STOMP WebSocket broker & Redis presence tracking
+│       │   │   ├── report/      # User & content abuse moderation reporting
+│       │   │   ├── user/        # User accounts, BCrypt passwords, prefix search
+│       │   │   └── ChatXApplication.java  # Main Spring Boot bootstrap class
+│       │   └── resources/
+│       │       ├── application.yml        # Base configuration & custom ChatX tokens
+│       │       ├── application-dev.yml    # Development profile (MySQL 8 + Redis)
+│       │       ├── application-local.yml  # Zero-dependency local profile (Embedded H2)
+│       │       └── application-prod.yml   # Production container profile
+│       └── test/                # Comprehensive unit & integration test suite (43 tests)
+│
+└── chatx-frontend/              # React 18 SPA (Vite + TypeScript + Tailwind CSS)
+    ├── README.md                # Standalone frontend documentation & guide
+    ├── Dockerfile               # Multi-stage Node builder + Nginx static server
+    ├── nginx.conf               # Nginx reverse proxy configuration for Docker
+    ├── package.json             # NPM dependencies & scripts
+    ├── tailwind.config.js       # Cyber dark mode theme & custom color tokens
+    ├── tsconfig.json            # Strict TypeScript configuration
+    ├── vite.config.ts           # Vite build config & proxy to http://localhost:8088
+    └── src/
+        ├── components/          # Reusable UI widgets (Modals, Badges, Loaders, Layouts)
+        ├── context/             # AuthContext (JWT session, login, logout, refresh)
+        ├── features/            # Feature-driven modular architecture
+        │   ├── admin/           # Metrics, user suspension, audit log table, report queue
+        │   ├── auth/            # Login, Registration, JWT persistence
+        │   ├── chat/            # Live chat room, cursor scroll, typing indicators, attachments
+        │   ├── friends/         # 4-tab friend management & request handling
+        │   ├── profile/         # User profile views & self-profile editor
+        │   └── users/           # User search modal (Ctrl+K) & public profiles
+        ├── services/            # Axios HTTP client & STOMP WebSocket client wrappers
+        ├── types/               # TypeScript data models and DTO interfaces
+        └── utils/               # Time formatters, file size helpers, constants
+```
+
+---
+
 ## 📄 License
 
 This project is licensed under the **MIT License**. See `LICENSE` for details.
 
 Developed with precision and clean architecture.
+

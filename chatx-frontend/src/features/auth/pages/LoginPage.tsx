@@ -40,7 +40,7 @@ export const LoginPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#111b21] flex flex-col font-sans select-none relative">
+    <div className="h-screen w-full bg-[#111b21] flex flex-col font-sans select-none relative overflow-y-auto custom-scrollbar">
       {/* Top Emerald Header Strip (signature WhatsApp Web banner) */}
       <div className="h-[222px] bg-wa-green w-full absolute top-0 left-0 z-0">
         <div className="max-w-5xl mx-auto px-6 pt-7 flex items-center gap-3">
@@ -52,8 +52,8 @@ export const LoginPage: React.FC = () => {
       </div>
 
       {/* Main Elevated Container */}
-      <div className="flex-1 flex items-center justify-center px-4 py-12 z-10">
-        <div className="w-full max-w-4xl bg-wa-panel border border-wa-border/70 rounded-2xl shadow-2xl p-8 sm:p-12 flex flex-col md:flex-row gap-10 mt-12">
+      <div className="flex-1 flex items-center justify-center px-4 py-8 sm:py-12 z-10 my-auto min-h-fit">
+        <div className="w-full max-w-4xl bg-wa-panel border border-wa-border/70 rounded-2xl shadow-2xl p-6 sm:p-10 flex flex-col md:flex-row gap-8 sm:gap-10 my-auto">
           {/* Left Column: Instructions */}
           <div className="flex-1 space-y-6">
             <h1 className="text-2xl sm:text-3xl font-light text-wa-text leading-tight">
@@ -77,13 +77,6 @@ export const LoginPage: React.FC = () => {
             <div className="pt-4 border-t border-wa-border/40 flex items-center gap-3 text-xs text-wa-text-secondary">
               <ShieldCheck className="w-4 h-4 text-wa-green shrink-0" />
               <span>Protected with real-time end-to-end WebSocket encryption.</span>
-            </div>
-
-            <div className="pt-2">
-              <span className="text-xs text-wa-text-secondary">Default Admin: </span>
-              <span className="text-xs font-mono text-wa-green bg-wa-input px-2 py-0.5 rounded border border-wa-border">
-                admin / Admin@1234
-              </span>
             </div>
           </div>
 

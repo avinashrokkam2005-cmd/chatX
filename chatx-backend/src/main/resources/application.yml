@@ -14,6 +14,8 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.MySQLDialect
         format_sql: false
+        type:
+          preferred_uuid_jdbc_type: CHAR
         jdbc:
           time_zone: UTC
 

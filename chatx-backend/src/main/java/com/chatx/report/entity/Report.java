@@ -6,6 +6,8 @@ import com.chatx.report.enums.ReportStatus;
 import com.chatx.report.enums.ReportTargetType;
 import com.chatx.user.entity.User;
 import jakarta.persistence.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.util.UUID;
 
@@ -25,6 +27,7 @@ public class Report extends BaseEntity {
     @Column(name = "target_type", nullable = false, length = 30)
     private ReportTargetType targetType;
 
+    @JdbcTypeCode(SqlTypes.CHAR)
     @Column(name = "target_id", nullable = false, columnDefinition = "CHAR(36)")
     private UUID targetId;
 

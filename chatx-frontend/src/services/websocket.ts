@@ -16,7 +16,7 @@ class WebSocketService {
 
     // Determine ws url based on current location / default backend port
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const brokerURL = `${protocol}//${window.location.hostname}:8080/ws`;
+    const brokerURL = `${protocol}//${window.location.host}/ws`;
 
     this.connectionPromise = new Promise((resolve, reject) => {
       this.client = new Client({

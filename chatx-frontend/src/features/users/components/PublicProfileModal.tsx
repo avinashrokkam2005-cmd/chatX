@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../../context/AuthContext';
 import { ProfileDto } from '../../../types/profile';
 import profileApi from '../../profile/services/profileApi';
 import friendApi from '../../friends/services/friendApi';
 import blockApi from '../../friends/services/blockApi';
 import conversationApi from '../../chat/services/conversationApi';
-import { X, Calendar, Shield, AtSign, Loader2, UserPlus, MessageCircle, ShieldAlert } from 'lucide-react';
+import { X, Calendar, Shield, AtSign, Loader2, UserPlus, MessageCircle, ShieldAlert, Check, UserCheck } from 'lucide-react';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
 
@@ -17,9 +18,12 @@ interface PublicProfileModalProps {
 
 export const PublicProfileModal: React.FC<PublicProfileModalProps> = ({ userId, username, onClose }) => {
   const navigate = useNavigate();
+  const { user: currentUser } = useAuth();
   const [profile, setProfile] = useState<ProfileDto | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSendingRequest, setIsSendingRequest] = useState(false);
+  const [isRequestSent, setIsRequestSent] = useState(false);
+  const [isAlreadyFriend, setIsAlreadyFriend] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -36,6 +40,24 @@ export const PublicProfileModal: React.FC<PublicProfileModalProps> = ({ userId, 
           return;
         }
         setProfile(data);
+
+        // Check relationship status if not self profile
+        if (currentUser && data.userId !== currentUser.id) {
+          try {
+            const [friends, sentReqs] = await Promise.all([
+              friendApi.getFriends(),
+              friendApi.getSentRequests(),
+            ]);
+
+            const isFriend = friends.some((f) => f.friendId === data.userId);
+            const isSent = sentReqs.some((r) => r.receiver.id === data.userId);
+
+            setIsAlreadyFriend(isFriend);
+            setIsRequestSent(isSent);
+          } catch (e) {
+            console.warn('Could not check friend status:', e);
+          }
+        }
       } catch (err: any) {
         setError(err.response?.data?.message || 'Failed to load user profile');
       } finally {
@@ -44,13 +66,14 @@ export const PublicProfileModal: React.FC<PublicProfileModalProps> = ({ userId, 
     };
 
     fetchProfile();
-  }, [userId, username]);
+  }, [userId, username, currentUser]);
 
   const handleSendFriendRequest = async () => {
     if (!profile) return;
     try {
       setIsSendingRequest(true);
       await friendApi.sendFriendRequest(profile.userId);
+      setIsRequestSent(true);
       toast.success(`Friend request sent to @${profile.username}!`);
     } catch (err: any) {
       toast.error(err.response?.data?.message || 'Failed to send friend request');
@@ -70,6 +93,8 @@ export const PublicProfileModal: React.FC<PublicProfileModalProps> = ({ userId, 
       toast.error(err.response?.data?.message || 'Failed to block user');
     }
   };
+
+  const isSelfProfile = Boolean(currentUser && profile && currentUser.id === profile.userId);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-150">
@@ -114,6 +139,11 @@ export const PublicProfileModal: React.FC<PublicProfileModalProps> = ({ userId, 
                   <span className="px-2.5 py-1 rounded-md text-xs font-semibold bg-chatx-accent/10 border border-chatx-accent/30 text-chatx-accent">
                     {profile.role}
                   </span>
+                  {isSelfProfile && (
+                    <span className="px-2.5 py-1 rounded-md text-xs font-semibold bg-wa-green/10 border border-wa-green/30 text-wa-green">
+                      You
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -148,45 +178,62 @@ export const PublicProfileModal: React.FC<PublicProfileModalProps> = ({ userId, 
               </div>
 
               {/* Action buttons */}
-              <div className="mt-6 flex flex-col gap-2.5">
-                <div className="flex gap-2.5">
+              {!isSelfProfile ? (
+                <div className="mt-6 flex flex-col gap-2.5">
+                  <div className="flex gap-2.5">
+                    <button
+                      onClick={async () => {
+                        try {
+                          const conv = await conversationApi.getOrCreateDirectConversation(profile.userId);
+                          onClose();
+                          navigate(`/chat/${conv.id}`);
+                        } catch (err: any) {
+                          toast.error(err.response?.data?.message || 'Failed to start conversation');
+                        }
+                      }}
+                      className="btn-primary flex-1 flex items-center justify-center gap-2 py-2.5 text-xs font-semibold"
+                    >
+                      <MessageCircle className="w-4 h-4" />
+                      <span>Message</span>
+                    </button>
+
+                    <button
+                      onClick={handleSendFriendRequest}
+                      disabled={isSendingRequest || isRequestSent || isAlreadyFriend}
+                      className="btn-secondary flex-1 flex items-center justify-center gap-2 py-2.5 text-xs font-semibold disabled:opacity-70 disabled:cursor-not-allowed"
+                    >
+                      {isSendingRequest ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : isAlreadyFriend ? (
+                        <UserCheck className="w-4 h-4 text-wa-green" />
+                      ) : isRequestSent ? (
+                        <Check className="w-4 h-4 text-wa-green" />
+                      ) : (
+                        <UserPlus className="w-4 h-4" />
+                      )}
+                      <span>
+                        {isAlreadyFriend
+                          ? 'Friends'
+                          : isRequestSent
+                          ? 'Request Sent'
+                          : 'Add Friend'}
+                      </span>
+                    </button>
+                  </div>
+
                   <button
-                    onClick={async () => {
-                      try {
-                        const conv = await conversationApi.getOrCreateDirectConversation(profile.userId);
-                        onClose();
-                        navigate(`/chat/${conv.id}`);
-                      } catch (err: any) {
-                        toast.error(err.response?.data?.message || 'Failed to start conversation');
-                      }
-                    }}
-                    className="btn-primary flex-1 flex items-center justify-center gap-2 py-2.5 text-xs font-semibold"
+                    onClick={handleBlockUser}
+                    className="w-full py-2 rounded-lg bg-chatx-danger/10 hover:bg-chatx-danger/20 border border-chatx-danger/20 text-chatx-danger text-xs font-medium flex items-center justify-center gap-1.5 transition-colors"
                   >
-                    <MessageCircle className="w-4 h-4" />
-                    <span>Message</span>
-                  </button>
-                  <button
-                    onClick={handleSendFriendRequest}
-                    disabled={isSendingRequest}
-                    className="btn-secondary flex-1 flex items-center justify-center gap-2 py-2.5 text-xs font-semibold"
-                  >
-                    {isSendingRequest ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <UserPlus className="w-4 h-4" />
-                    )}
-                    <span>Add Friend</span>
+                    <ShieldAlert className="w-3.5 h-3.5" />
+                    <span>Block @{profile.username}</span>
                   </button>
                 </div>
-
-                <button
-                  onClick={handleBlockUser}
-                  className="w-full py-2 rounded-lg bg-chatx-danger/10 hover:bg-chatx-danger/20 border border-chatx-danger/20 text-chatx-danger text-xs font-medium flex items-center justify-center gap-1.5 transition-colors"
-                >
-                  <ShieldAlert className="w-3.5 h-3.5" />
-                  <span>Block @{profile.username}</span>
-                </button>
-              </div>
+              ) : (
+                <div className="mt-6 p-3 rounded-xl bg-chatx-card border border-chatx-border text-center text-xs text-chatx-text-secondary">
+                  This is your own public profile preview.
+                </div>
+              )}
             </>
           )}
         </div>
